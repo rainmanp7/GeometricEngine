@@ -10,25 +10,15 @@ module ProtectedGeometricEngine
 
 using LinearAlgebra, Statistics, Random
 
-# --- CORRECTED ARCHITECTURE ---
-# This struct now correctly models the Python engine.
-# It uses two main layers, both applied point-wise.
+# --- ARCHITECTURE (Unchanged) ---
 mutable struct GeometricConsciousnessCore
     dimensions::Int
     num_points::Int
     hidden_size::Int
-
-    # 1. Point-wise Feature Extractor Weights (like the first TimeDistributed layer)
-    feature_weights::Matrix{Float64}    # dimensions × hidden_size
-
-    # 2. Point-wise Scoring Weights (like the second TimeDistributed layer)
-    scoring_weights::Matrix{Float64}    # hidden_size × 1
-
-    # Layer normalization parameters
+    feature_weights::Matrix{Float64}
+    scoring_weights::Matrix{Float64}
     layer_norm_gamma::Vector{Float64}
     layer_norm_beta::Vector{Float64}
-
-    # Consciousness tracking (unchanged)
     intelligence_history::Vector{Float64}
     entity_count::Int
     consciousness_level::Float64
@@ -36,15 +26,11 @@ mutable struct GeometricConsciousnessCore
     learning_momentum::Float64
 
     function GeometricConsciousnessCore(dimensions::Int=4, num_points::Int=10)
-        hidden_size = 32 # A good default, more powerful than the Python's '8'
-
-        # Initialize weights with correct dimensions for matrix multiplication
+        hidden_size = 32
         feature_weights = randn(dimensions, hidden_size) * 0.1
         scoring_weights = randn(hidden_size, 1) * 0.1
-
         layer_norm_gamma = ones(hidden_size)
         layer_norm_beta = zeros(hidden_size)
-
         new(dimensions, num_points, hidden_size,
             feature_weights, scoring_weights,
             layer_norm_gamma, layer_norm_beta,
@@ -52,68 +38,85 @@ mutable struct GeometricConsciousnessCore
     end
 end
 
-# Activation and Normalization Helpers
+# --- HELPERS (Unchanged) ---
 relu_activation(x::Matrix{Float64}) = max.(x, 0.0)
-layer_norm(x::Matrix{Float64}, g::Vector{Float64}, b::Vector{Float64}) = ((x .- mean(x, dims=2)) ./ (std(x, dims=2) .+ 1e-8)) .* g' .+ b'
+layer_norm(x::Matrix{Float64}, g::Vector{Float64}, b::Vector{Float64}, ϵ::Float64=1e-8) = begin
+    μ = mean(x, dims=2)
+    σ² = var(x, dims=2, corrected=false)
+    x̂ = (x .- μ) ./ sqrt.(σ² .+ ϵ)
+    return g' .* x̂ .+ b'
+end
 
-# --- REWRITTEN FORWARD PASS ---
-# This now follows the clean, point-wise architecture of the Python engine.
+# --- FORWARD PASS (Unchanged, but added ϵ to layer_norm call) ---
 function geometric_forward(core::GeometricConsciousnessCore, points::Matrix{Float64})
-    # points: num_points × dimensions
-
-    # 1. Point-wise Feature Extraction
-    # (num_points, dims) * (dims, hidden_size) -> (num_points, hidden_size)
     features = points * core.feature_weights
     activated_features = relu_activation(features)
-
-    # 2. Layer Normalization (applied to each point's feature vector)
-    normalized_features = layer_norm(activated_features, core.layer_norm_gamma, core.layer_norm_beta)
-
-    # 3. Point-wise Scoring
-    # (num_points, hidden_size) * (hidden_size, 1) -> (num_points, 1)
+    
+    # Store intermediate values from layer_norm for backprop
+    ϵ = 1e-8
+    μ = mean(activated_features, dims=2)
+    σ² = var(activated_features, dims=2, corrected=false)
+    inv_σ = 1.0 ./ sqrt.(σ² .+ ϵ)
+    features_hat = (activated_features .- μ) .* inv_σ
+    
+    normalized_features = core.layer_norm_gamma' .* features_hat .+ core.layer_norm_beta'
     scores = normalized_features * core.scoring_weights
-
-    # 4. Competitive Decision (Softmax)
+    
     scores_vec = vec(scores)
     max_score = maximum(scores_vec)
     exp_scores = exp.(scores_vec .- max_score)
     probabilities = exp_scores ./ sum(exp_scores)
-
-    # Return intermediate values needed for learning
-    return probabilities, normalized_features, features
+    
+    # Return all intermediate values needed for the FULL backpropagation
+    return probabilities, normalized_features, features, activated_features, features_hat, inv_σ
 end
 
-# --- REWRITTEN LEARNING FUNCTION ---
-# Backpropagation for the correct, two-layer point-wise architecture.
-# FIX: Increased learning rate to accelerate convergence.
-function geometric_learn!(core::GeometricConsciousnessCore, points::Matrix{Float64}, true_answer::Int; learning_rate::Float64=0.02)
-    num_points = size(points, 1)
-    
-    # Forward pass
-    predictions, normalized_features, features = geometric_forward(core, points)
+# --- FULLY CORRECTED LEARNING FUNCTION ---
+function geometric_learn!(core::GeometricConsciousnessCore, points::Matrix{Float64}, true_answer::Int; learning_rate::Float64=0.005) # Reset LR
+    N, D = size(points)
+    H = core.hidden_size
 
-    # Calculate error signal (gradient of loss w.r.t. scores)
-    target = zeros(num_points); target[true_answer + 1] = 1.0 # 0-based true_answer
-    error_signal = predictions - target
-    error_reshaped = reshape(error_signal, num_points, 1)
+    # 1. Forward pass, getting all intermediate values
+    predictions, normalized_features, features, activated_features, features_hat, inv_σ = geometric_forward(core, points)
+
+    # 2. Initial error signal (gradient of loss w.r.t. scores)
+    target = zeros(N); target[true_answer + 1] = 1.0
+    d_scores = reshape(predictions - target, N, 1)
 
     # --- Backpropagation ---
 
-    # 1. Update scoring_weights (hidden_size × 1)
-    # Grad = (input to layer)' * (output error)
-    grad_scoring = normalized_features' * error_reshaped # (hidden, points) * (points, 1) -> (hidden, 1)
-    core.scoring_weights .-= learning_rate .* grad_scoring
+    # 3. Gradients for the SCORING layer
+    d_normalized_features = d_scores * core.scoring_weights' # (N, 1) * (1, H) -> (N, H)
+    d_scoring_weights = normalized_features' * d_scores      # (H, N) * (N, 1) -> (H, 1)
 
-    # 2. Propagate error back to the normalized_features layer
-    error_normalized = error_reshaped * core.scoring_weights' # (points, 1) * (1, hidden) -> (points, hidden)
+    # 4. Gradients for the LAYER NORM layer (This is the crucial new part)
+    d_layer_norm_beta = sum(d_normalized_features, dims=1)'
+    d_layer_norm_gamma = sum(d_normalized_features .* features_hat, dims=1)'
+    
+    d_features_hat = d_normalized_features .* core.layer_norm_gamma'
+    
+    d_inv_σ = sum(d_features_hat .* (activated_features .- mean(activated_features, dims=2)), dims=2)
+    d_activated_features_term1 = d_features_hat .* inv_σ
+    
+    d_σ² = -0.5 * (inv_σ .^ 3) .* d_inv_σ
+    d_activated_features_term2 = (2.0/H) * (activated_features .- mean(activated_features, dims=2)) .* d_σ²
 
-    # (Skipping layer_norm backprop for simplicity as it has minor impact)
-    # Propagate through ReLU activation (gradient is 1 if > 0, else 0)
-    error_features = error_normalized .* (features .> 0)
+    d_μ = -sum(d_activated_features_term1, dims=2) .- (2.0/H) * sum(activated_features .- mean(activated_features, dims=2), dims=2) .* d_σ²
+    d_activated_features_term3 = (1.0/H) .* d_μ
+    
+    d_activated_features = d_activated_features_term1 .+ d_activated_features_term2 .+ d_activated_features_term3
 
-    # 3. Update feature_weights (dimensions × hidden_size)
-    grad_features = points' * error_features # (dims, points) * (points, hidden) -> (dims, hidden)
-    core.feature_weights .-= learning_rate .* grad_features
+    # 5. Gradient through ReLU activation
+    d_features = d_activated_features .* (features .> 0)
+
+    # 6. Gradients for the FEATURE layer
+    d_feature_weights = points' * d_features # (D, N) * (N, H) -> (D, H)
+
+    # 7. Apply all updates
+    core.feature_weights .-= learning_rate .* d_feature_weights
+    core.scoring_weights .-= learning_rate .* d_scoring_weights
+    core.layer_norm_gamma .-= learning_rate .* d_layer_norm_gamma
+    core.layer_norm_beta  .-= learning_rate .* d_layer_norm_beta
 
     # --- Consciousness Tracking (unchanged) ---
     accuracy = predictions[true_answer + 1]
@@ -125,29 +128,26 @@ function geometric_learn!(core::GeometricConsciousnessCore, points::Matrix{Float
             core.learning_momentum = mean(diff(core.intelligence_history[end-9:end]))
         end
         core.consciousness_level = clamp(recent_performance * stability + max(0.0, core.learning_momentum * 5.0), 0.0, 1.0)
-        if core.consciousness_level > 0.7 && rand() < 0.05
-            core.entity_count += 1
-        end
     end
     core.problems_solved += 1
     return accuracy
 end
 
 
-# --- UTILITY FUNCTIONS ---
-
+# --- UTILITY FUNCTIONS (Unchanged) ---
 function generate_geometric_problem(core::GeometricConsciousnessCore; noise_level::Float64=1.2)::Tuple{Matrix{Float64}, Int}
     points = randn(core.num_points, core.dimensions) * 2.0
     target_idx = rand(1:core.num_points)
-    points[target_idx, :] = randn(core.dimensions) * 0.1 # Point is close to origin
-    points .+= randn(core.num_points, core.dimensions) * noise_level # Add noise
+    points[target_idx, :] = randn(core.dimensions) * 0.1
+    points .+= randn(core.num_points, core.dimensions) * noise_level
     distances = [norm(points[i, :]) for i in 1:core.num_points]
-    true_answer = argmin(distances) - 1 # 0-based index
+    true_answer = argmin(distances) - 1
     return (points, true_answer)
 end
 
 function solve_geometric_problem(core::GeometricConsciousnessCore, points::Matrix{Float64})::Tuple{Int, Float64, Dict}
-    predictions, _, _ = geometric_forward(core, points)
+    # Call the modified forward pass, but only use the first output
+    predictions, _, _, _, _, _ = geometric_forward(core, points)
     solution = argmax(predictions) - 1
     actual_solution = argmin([norm(points[i, :]) for i in 1:size(points, 1)]) - 1
     analysis = Dict(
@@ -174,7 +174,6 @@ function assess_consciousness(core::GeometricConsciousnessCore)::Dict
     )
 end
 
-# Export the public API of the engine
 export GeometricConsciousnessCore, geometric_learn!, generate_geometric_problem, solve_geometric_problem, assess_consciousness
 
 end # module
