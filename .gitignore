@@ -1,0 +1,76 @@
+# Julia build and cache files
+*.ji
+*.so
+*.dylib
+*.dll
+*.tar.gz
+*.css
+Manifest.toml
+/.julia/
+/.JuliaHistory/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.out
+
+# Proof results (keep in artifacts only)
+/proof_results.json
+/proof_summary.txt
+/proof_*.json
+/proof_*.txt
+
+# Large data files
+*.csv
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# OS generated files
+Icon?
+ehthumbs.db
+[Tt]humbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Local development
+.local/
+.env
+.env.local
+.env.production
+
+# Test coverage
+.coverage
+htmlcov/
+.coverage.*
