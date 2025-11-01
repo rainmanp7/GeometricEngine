@@ -1,12 +1,13 @@
 # emergent_ai_testing.jl
 
-# FIX: Include the file defining the EmergentAIEngine module.
-# This makes the module available in the Main scope before it is used.
+# FIX 1: Load the engine file BEFORE the test module is defined.
+# This makes the EmergentAIEngine module available to be used.
 include("EmergentAIEngine.jl")
 
 module EmergentAITesting
 
-using .EmergentAIEngine, JSON3, Dates, Statistics, Random
+# FIX 2: Use the loaded module directly (the dot is not needed and can be fragile).
+using EmergentAIEngine, JSON3, Dates, Statistics, Random
 
 # ==================== TEST FRAMEWORK ====================
 
