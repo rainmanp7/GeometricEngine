@@ -1,11 +1,120 @@
-# ProductionGeometricEngine.jl (fully corrected)
+# ProductionGeometricEngine.jl (Duplicate struct removed)
 
 module ProductionGeometricEngine
 
-using LinearAlgebra, Statistics, Random, Logging, Printf
+using LinearAlgebra
+using Statistics
+using Random
+using Logging
+using Printf
 
-# (All code from before is unchanged up to adam_update!)
-# ... (structs, layers, forward pass, etc.) ...
+# ============================================================================
+# CUSTOM TYPES AND STRUCTURES
+# ============================================================================
+
+"""
+Optimizer state for Adam algorithm
+"""
+mutable struct AdamState
+    m_weights::Dict{Symbol, Any}  # First moment estimates
+    v_weights::Dict{Symbol, Any}  # Second moment estimates
+    t::Int                         # Time step
+    β1::Float64                    # Exponential decay rate for first moment
+    β2::Float64                    # Exponential decay rate for second moment
+    ϵ::Float64                     # Small constant for numerical stability
+    
+    function AdamState(β1::Float64=0.9, β2::Float64=0.999, ϵ::Float64=1e-8)
+        new(Dict{Symbol, Any}(), Dict{Symbol, Any}(), 0, β1, β2, ϵ)
+    end
+end
+
+"""
+Training configuration with validation
+"""
+struct TrainingConfig
+    learning_rate::Float64
+    batch_size::Int
+    max_gradient_norm::Float64
+    weight_decay::Float64
+    dropout_rate::Float64
+    
+    function TrainingConfig(;
+        learning_rate::Float64=0.001,
+        batch_size::Int=32,
+        max_gradient_norm::Float64=1.0,
+        weight_decay::Float64=1e-5,
+        dropout_rate::Float64=0.0
+    )
+        @assert learning_rate > 0 "Learning rate must be positive"
+        @assert batch_size > 0 "Batch size must be positive"
+        @assert max_gradient_norm > 0 "Max gradient norm must be positive"
+        @assert 0 <= dropout_rate < 1 "Dropout rate must be in [0, 1)"
+        
+        new(learning_rate, batch_size, max_gradient_norm, weight_decay, dropout_rate)
+    end
+end
+
+"""
+Main geometric consciousness core with production features
+"""
+mutable struct GeometricCore
+    # Architecture parameters
+    dimensions::Int
+    num_points::Int
+    hidden_size::Int
+    
+    # Network parameters
+    W_feature::Matrix{Float64}
+    W_scoring::Matrix{Float64}
+    γ_norm::Vector{Float64}
+    β_norm::Vector{Float64}
+    
+    # Optimizer state
+    optimizer::AdamState
+    config::TrainingConfig
+    
+    # Metrics and monitoring
+    intelligence_history::Vector{Float64}
+    loss_history::Vector{Float64}
+    gradient_norms::Vector{Float64}
+    consciousness_level::Float64
+    problems_solved::Int
+    
+    # Safety and validation
+    is_training::Bool
+    rng::MersenneTwister
+    
+    function GeometricCore(
+        dimensions::Int=4,
+        num_points::Int=10,
+        hidden_size::Int=64;  # Increased for better capacity
+        config::TrainingConfig=TrainingConfig(),
+        seed::Int=42
+    )
+        @assert dimensions > 0 "Dimensions must be positive"
+        @assert num_points > 1 "Need at least 2 points"
+        @assert hidden_size > 0 "Hidden size must be positive"
+        
+        rng = MersenneTwister(seed)
+        
+        # Xavier/Glorot initialization for better gradient flow
+        scale_feature = sqrt(2.0 / (dimensions + hidden_size))
+        scale_scoring = sqrt(2.0 / (hidden_size + 1))
+        
+        W_feature = randn(rng, dimensions, hidden_size) .* scale_feature
+        W_scoring = randn(rng, hidden_size, 1) .* scale_scoring
+        γ_norm = ones(Float64, hidden_size)
+        β_norm = zeros(Float64, hidden_size)
+        
+        new(
+            dimensions, num_points, hidden_size,
+            W_feature, W_scoring, γ_norm, β_norm,
+            AdamState(), config,
+            Float64[], Float64[], Float64[],
+            0.0, 0, true, rng
+        )
+    end
+end
 
 # ============================================================================
 # ACTIVATION FUNCTIONS (Numerically Stable)
@@ -26,13 +135,6 @@ function stable_softmax(x::AbstractVector{T}) where T <: Real
     x_max = maximum(x)
     exp_x = exp.(x .- x_max)
     return exp_x ./ sum(exp_x)
-end
-
-"""
-GELU activation (alternative to ReLU, often performs better)
-"""
-@inline function gelu(x::T) where T <: Real
-    return 0.5 * x * (1.0 + tanh(sqrt(2.0 / π) * (x + 0.044715 * x^3)))
 end
 
 # ============================================================================
@@ -250,19 +352,11 @@ function adam_update!(
         # Compute update
         update = α_t .* m ./ (sqrt.(v) .+ ϵ)
         
-        # --- THE CRITICAL FIX ---
-        # Get a reference to the original parameter
+        # Get a reference to the original parameter and update it in-place
         param_ref = getfield(core, param_name)
-        # Apply the update IN-PLACE to the original parameter
         param_ref .-= update
-        # --- END FIX ---
-        
-        # Store updated moments (no change here)
-        opt.m_weights[param_name] = m
-        opt.v_weights[param_name] = v
     end
 end
-
 
 # ============================================================================
 # TRAINING FUNCTION
@@ -522,63 +616,4 @@ export train_step!, train!, predict
 export generate_problem, assess_consciousness
 export forward_pass, backward_pass
 
-
-struct GeometricCore
-    # Architecture parameters
-    dimensions::Int
-    num_points::Int
-    hidden_size::Int
-    
-    # Network parameters
-    W_feature::Matrix{Float64}
-    W_scoring::Matrix{Float64}
-    γ_norm::Vector{Float64}
-    β_norm::Vector{Float64}
-    
-    # Optimizer state
-    optimizer::AdamState
-    config::TrainingConfig
-    
-    # Metrics and monitoring
-    intelligence_history::Vector{Float64}
-    loss_history::Vector{Float64}
-    gradient_norms::Vector{Float64}
-    consciousness_level::Float64
-    problems_solved::Int
-    
-    # Safety and validation
-    is_training::Bool
-    rng::MersenneTwister
-    
-    function GeometricCore(
-        dimensions::Int=4,
-        num_points::Int=10,
-        hidden_size::Int=64;  # Increased for better capacity
-        config::TrainingConfig=TrainingConfig(),
-        seed::Int=42
-    )
-        @assert dimensions > 0 "Dimensions must be positive"
-        @assert num_points > 1 "Need at least 2 points"
-        @assert hidden_size > 0 "Hidden size must be positive"
-        
-        rng = MersenneTwister(seed)
-        
-        # Xavier/Glorot initialization for better gradient flow
-        scale_feature = sqrt(2.0 / (dimensions + hidden_size))
-        scale_scoring = sqrt(2.0 / (hidden_size + 1))
-        
-        W_feature = randn(rng, dimensions, hidden_size) .* scale_feature
-        W_scoring = randn(rng, hidden_size, 1) .* scale_scoring
-        γ_norm = ones(Float64, hidden_size)
-        β_norm = zeros(Float64, hidden_size)
-        
-        new(
-            dimensions, num_points, hidden_size,
-            W_feature, W_scoring, γ_norm, β_norm,
-            AdamState(), config,
-            Float64[], Float64[], Float64[],
-            0.0, 0, true, rng
-        )
-    end
-end
 end # module
