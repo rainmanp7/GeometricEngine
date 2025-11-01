@@ -83,7 +83,7 @@ function forward_pass(core, points)
     h1_norm, ln_cache = layer_norm_forward(h1_after_dropout, core.γ_norm, core.β_norm)
     logits = vec(h1_norm * core.W_scoring)
     probs = stable_softmax(logits)
-    cache = (points=points, z1=z1, ln_cache=ln_cache, h1_norm=h1_norm, probs=probs)
+    cache = (points=points, z1=z1, h1_dropped=h1_after_dropout, ln_cache=ln_cache, h1_norm=h1_norm, probs=probs)
     return probs, cache
 end
 
@@ -95,10 +95,10 @@ function backward_pass(core, cache, target_idx)
     dh1_norm = reshape(dlogits, core.num_points, 1) * core.W_scoring'
     
     # Use the new, stable backward function
-    dh1, dγ, dβ = simplified_layer_norm_backward(dh1_norm, cache.ln_cache)
+    dh1_dropped, dγ, dβ = simplified_layer_norm_backward(dh1_norm, cache.ln_cache)
     
-    # Note: We backpropagate through the ReLU of the original z1, not the dropped-out version
-    dz1 = dh1 .* relu_derivative.(cache.z1)
+    # The gradient for ReLU is based on the pre-dropout activation z1
+    dz1 = dh1_dropped .* relu_derivative.(cache.z1)
     dW_feature = cache.points' * dz1
     
     return Dict(:W_feature=>dW_feature, :W_scoring=>dW_scoring, :γ_norm=>dγ, :β_norm=>dβ)
