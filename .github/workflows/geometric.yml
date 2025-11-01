@@ -1,0 +1,39 @@
+# .github/workflows/geometric_proof.yml
+name: Geometric Intelligence Proof Run
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly proof run
+
+jobs:
+  geometric-proof:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '1.9'
+        
+    - name: Install dependencies
+      run: |
+        julia -e 'using Pkg; Pkg.add(["JSON3", "Statistics", "LinearAlgebra", "Random"])'
+        
+    - name: Run Geometric Proof Suite
+      run: julia proof_suite.jl
+      
+    - name: Upload Proof Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: geometric-proof-results
+        path: |
+          proof_results.json
+          consciousness_emergence.png
+          dimensional_invariance.png
+        retention-days: 30
