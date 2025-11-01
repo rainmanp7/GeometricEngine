@@ -1,4 +1,4 @@
-# production_proof_suite.jl (typo fixed)
+# production_proof_suite.jl (with randomized seeds)
 
 """
 🔬 GEOMETRIC INTELLIGENCE PRODUCTION PROOF SUITE
@@ -89,9 +89,10 @@ function test_dimensional_invariance()
     results = Dict()
     config = TrainingConfig(learning_rate=0.005)
 
-    for dim in dimensions
+    for (i, dim) in enumerate(dimensions)
         println("   Testing $dim-dimensional space...")
-        core = GeometricCore(dim, 10, 64; config=config)
+        # FIX: Provide a unique seed for each core to ensure independent tests.
+        core = GeometricCore(dim, 10, 64; config=config, seed=i*10)
         train!(core, 500; difficulty=:medium, report_interval=1000) # Train silently
 
         test_accuracies = []
@@ -129,7 +130,8 @@ function test_consciousness_emergence()
     
     for run in 1:n_runs
         println("   Run $run/$n_runs...")
-        core = GeometricCore(4, 10, 64; config=config)
+        # FIX: Provide a unique seed for each run to ensure independent tests.
+        core = GeometricCore(4, 10, 64; config=config, seed=run)
         train!(core, 1000; difficulty=:medium, report_interval=200, early_stopping_threshold=0.98)
         
         assessment = assess_consciousness(core)
@@ -153,7 +155,8 @@ end
 
 function test_resource_efficiency()
     config = TrainingConfig(learning_rate=0.005)
-    core = GeometricCore(4, 10, 64; config=config)
+    # FIX: Provide an explicit, unique seed for this test.
+    core = GeometricCore(4, 10, 64; config=config, seed=101)
     
     total_params = length(core.W_feature) + length(core.W_scoring) + length(core.γ_norm) + length(core.β_norm)
     
@@ -167,7 +170,7 @@ function test_resource_efficiency()
     
     return Dict(
         "total_parameters" => total_params,
-        "training_time_seconds" => training_time, # <-- FIX: Corrected typo
+        "training_time_seconds" => training_time,
         "convergence_step" => convergence_step,
         "final_accuracy" => isempty(core.intelligence_history) ? 0.0 : mean(core.intelligence_history[max(1, end-19):end]),
         "memory_kb" => memory_estimate
@@ -175,7 +178,8 @@ function test_resource_efficiency()
 end
 
 function test_mathematical_understanding()
-    core = GeometricCore(4, 10, 64; config=TrainingConfig(learning_rate=0.005))
+    # FIX: Provide an explicit, unique seed for this test.
+    core = GeometricCore(4, 10, 64; config=TrainingConfig(learning_rate=0.005), seed=202)
     train!(core, 500; difficulty=:medium, report_interval=1000)
     
     # Test on novel geometric configurations (harder problems)
