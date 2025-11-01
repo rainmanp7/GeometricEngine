@@ -17,7 +17,9 @@ function one_run(seed::Int)
     core = GeometricCore(4,10,HIDDEN; cfg=cfg, seed=seed)
 
     # ---- pre-train ----
-    pre = [predict(core,first(make_problem(core))) == second(make_problem(core)) ? 1.0 : 0.0
+    pre = [let (X, t) = make_problem(core)
+               predict(core, X) == t ? 1.0 : 0.0
+           end
            for _ in 1:100]
     pre_acc = mean(pre)
 
@@ -28,7 +30,9 @@ function one_run(seed::Int)
     end
 
     # ---- post-train ----
-    post = [predict(core,first(make_problem(core))) == second(make_problem(core)) ? 1.0 : 0.0
+    post = [let (X, t) = make_problem(core)
+                predict(core, X) == t ? 1.0 : 0.0
+            end
             for _ in 1:200]
     post_acc = mean(post)
 
