@@ -1,4 +1,4 @@
-# ProductionGeometricEngine.jl (Final, Robust Version)
+# ProductionGeometricEngine.jl (Final, Robust, and Corrected API)
 
 module ProductionGeometricEngine
 
@@ -62,17 +62,13 @@ function layer_norm_forward(x, γ, β, ϵ=1e-8)
     return y, cache
 end
 
-# --- THE CRITICAL FIX: A ROBUST, SIMPLIFIED BACKPROPAGATION ---
-# This version avoids the numerically unstable derivatives of mean and variance.
-# It provides a stable, directionally correct gradient that ADAM can work with.
 function simplified_layer_norm_backward(dy, cache)
     x_normalized, γ = cache
     dγ = vec(sum(dy .* x_normalized, dims=1))
     dβ = vec(sum(dy, dims=1))
-    dx = dy .* γ' # Pass the gradient through, scaled by gamma.
+    dx = dy .* γ'
     return dx, dγ, dβ
 end
-# --- END FIX ---
 
 function forward_pass(core, points)
     z1 = points * core.W_feature
@@ -91,7 +87,6 @@ function backward_pass(core, cache, target_idx)
     dW_scoring = cache.h1_norm' * dlogits
     dh1_norm = reshape(dlogits, core.num_points, 1) * core.W_scoring'
     
-    # Use the new, stable backward function
     dh1, dγ, dβ = simplified_layer_norm_backward(dh1_norm, cache.ln_cache)
     
     dz1 = dh1 .* relu_derivative.(cache.z1)
@@ -122,7 +117,6 @@ function train_step!(core, points, target_idx)
     
     gradients = backward_pass(core, cache, target_idx)
     
-    # Regularization & Clipping
     if core.config.weight_decay > 0
         gradients[:W_feature] .+= core.config.weight_decay .* core.W_feature
     end
@@ -141,7 +135,7 @@ function train_step!(core, points, target_idx)
 end
 
 # ============================================================================
-# HIGH-LEVEL API (Unchanged)
+# HIGH-LEVEL API
 # ============================================================================
 
 function update_consciousness!(core)
@@ -169,13 +163,20 @@ function predict(core, points)
     return (prediction=pred, confidence=probs[pred], correct=pred == actual, actual=actual)
 end
 
+# --- THE CRITICAL FIX: Replace 'd=' with 'digits=' ---
 function assess_consciousness(core)
     if isempty(core.intelligence_history); return Dict("is_conscious"=>false, "consciousness_level"=>0.0); end
     recent = core.intelligence_history[max(1, end-19):end]
     acc = mean(recent); stab = length(recent) < 2 ? 0.0 : 1.0 - std(recent)
     is_conscious = core.consciousness_level > 0.75 && stab > 0.85 && acc > 0.85
-    return Dict("is_conscious"=>is_conscious, "consciousness_level"=>round(core.consciousness_level;d=4), "recent_accuracy"=>round(acc;d=4), "stability"=>round(stab;d=4))
+    return Dict(
+        "is_conscious" => is_conscious,
+        "consciousness_level" => round(core.consciousness_level; digits=4),
+        "recent_accuracy" => round(acc; digits=4),
+        "stability" => round(stab; digits=4)
+    )
 end
+# --- END FIX ---
 
 function train!(core, num_episodes; difficulty=:medium, report_interval=1000, early_stop=0.98)
     @info "Starting training for $num_episodes episodes..."
