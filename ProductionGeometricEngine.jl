@@ -65,7 +65,7 @@ function simplified_layer_norm_backward(dy, cache)
     x_hat, γ = cache
     dγ = vec(sum(dy .* x_hat, dims=1))
     dβ = vec(sum(dy, dims=1))
-    dx = dy .* γ' # Pass the gradient through, scaled by gamma. This is stable.
+    dx = dy .* γ' # Pass the error signal back, scaled by gamma. This is stable.
     return dx, dγ, dβ
 end
 
@@ -74,17 +74,16 @@ function forward_pass(core, points)
     h1 = relu.(z1)
     
     # --- PROPER DROPOUT IMPLEMENTATION ---
-    h1_dropped = h1
+    h1_after_dropout = h1
     if core.is_training && core.config.dropout_rate > 0.0
-        # Create a dropout mask and apply it
         dropout_mask = rand(core.rng, size(h1)) .> core.config.dropout_rate
-        h1_dropped = h1 .* dropout_mask ./ (1.0 - core.config.dropout_rate)
+        h1_after_dropout = h1 .* dropout_mask ./ (1.0 - core.config.dropout_rate)
     end
     
-    h1_norm, ln_cache = layer_norm_forward(h1_dropped, core.γ_norm, core.β_norm)
+    h1_norm, ln_cache = layer_norm_forward(h1_after_dropout, core.γ_norm, core.β_norm)
     logits = vec(h1_norm * core.W_scoring)
     probs = stable_softmax(logits)
-    cache = (points=points, z1=z1, h1_dropped=h1_dropped, ln_cache=ln_cache, h1_norm=h1_norm, probs=probs)
+    cache = (points=points, z1=z1, ln_cache=ln_cache, h1_norm=h1_norm, probs=probs)
     return probs, cache
 end
 
@@ -98,6 +97,7 @@ function backward_pass(core, cache, target_idx)
     # Use the new, stable backward function
     dh1, dγ, dβ = simplified_layer_norm_backward(dh1_norm, cache.ln_cache)
     
+    # Note: We backpropagate through the ReLU of the original z1, not the dropped-out version
     dz1 = dh1 .* relu_derivative.(cache.z1)
     dW_feature = cache.points' * dz1
     
@@ -127,6 +127,7 @@ function train_step!(core, points, target_idx)
     
     if core.config.weight_decay > 0
         gradients[:W_feature] .+= core.config.weight_decay .* core.W_feature
+        gradients[:W_scoring] .+= core.config.weight_decay .* core.W_scoring
     end
     total_norm = sqrt(sum(sum(abs2, g) for g in values(gradients)))
     push!(core.gradient_norms, total_norm)
