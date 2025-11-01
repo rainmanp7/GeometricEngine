@@ -8,7 +8,7 @@ using LinearAlgebra, Statistics, Random, JSON3, Dates
 
 abstract type AbstractEmergentEntity end
 
-struct GeometricReasoningEntity <: AbstractEmergentEntity
+mutable struct GeometricReasoningEntity <: AbstractEmergentEntity
     id::String
     feature_weights::Matrix{Float64}
     distance_weights::Vector{Float64}
@@ -64,7 +64,7 @@ struct GeometricReasoningEntity <: AbstractEmergentEntity
     end
 end
 
-struct ConsciousProcessingEntity <: AbstractEmergentEntity
+mutable struct ConsciousProcessingEntity <: AbstractEmergentEntity
     id::String
     attention_weights::Matrix{Float64}
     working_memory::Vector{Float64}
