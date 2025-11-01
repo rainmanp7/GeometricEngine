@@ -1,202 +1,127 @@
-# ProductionGeometricEngine.jl (Version 5.0 - Final, Robust, and Tuned)
+# GeometricEngine.jl (The Final, Corrected Version)
 
-module ProductionGeometricEngine
+module GeometricEngine
 
-using LinearAlgebra, Statistics, Random, Logging, Printf
-
-# ============================================================================
-# CUSTOM TYPES AND STRUCTURES
-# ============================================================================
-
-mutable struct AdamState
-    m_weights::Dict{Symbol, Any}; v_weights::Dict{Symbol, Any}; t::Int
-    β1::Float64; β2::Float64; ϵ::Float64
-    AdamState(β1=0.9, β2=0.999, ϵ=1e-8) = new(Dict(), Dict(), 0, β1, β2, ϵ)
-end
+using LinearAlgebra, Statistics, Random
 
 struct TrainingConfig
-    learning_rate::Float64; max_gradient_norm::Float64; weight_decay::Float64; dropout_rate::Float64
-    TrainingConfig(; lr=0.0005, clip=1.0, decay=1e-5, dropout=0.1) = new(lr, clip, decay, dropout)
+    learning_rate::Float64
+    β1::Float64
+    β2::Float64
+    ϵ::Float64
+    TrainingConfig(; lr=0.001, β1=0.9, β2=0.999, ϵ=1e-8) = new(lr, β1, β2, ϵ)
+end
+
+mutable struct AdamOptimizer
+    m::Dict{Symbol, Any}
+    v::Dict{Symbol, Any}
+    t::Int
+    AdamOptimizer() = new(Dict(), Dict(), 0)
 end
 
 mutable struct GeometricCore
-    dimensions::Int; num_points::Int; hidden_size::Int
-    W_feature::Matrix{Float64}; W_scoring::Matrix{Float64}
-    γ_norm::Vector{Float64}; β_norm::Vector{Float64}
-    optimizer::AdamState; config::TrainingConfig
-    intelligence_history::Vector{Float64}; loss_history::Vector{Float64}
-    gradient_norms::Vector{Float64}; consciousness_level::Float64
-    problems_solved::Int; is_training::Bool; rng::MersenneTwister
+    dimensions::Int
+    num_points::Int
+    hidden_size::Int
+    W_f::Matrix{Float64}
+    W_s::Matrix{Float64}
+    γ::Vector{Float64}
+    β::Vector{Float64}
+    optimizer::AdamOptimizer
+    config::TrainingConfig
+    rng::MersenneTwister
     
-    function GeometricCore(dims=4, n_pts=10, h_size=256; config=TrainingConfig(), seed=42)
+    function GeometricCore(dims=4, n_pts=10, h_size=64; config=TrainingConfig(), seed=42)
         rng = MersenneTwister(seed)
-        scale_feature = sqrt(2.0 / (dims + h_size))
-        scale_scoring = sqrt(2.0 / (h_size + 1))
-        W_f = randn(rng, dims, h_size) .* scale_feature
-        W_s = randn(rng, h_size, 1) .* scale_scoring
-        γ_n = ones(Float64, h_size); β_n = zeros(Float64, h_size)
-        new(dims, n_pts, h_size, W_f, W_s, γ_n, β_n, AdamState(), config, 
-            [], [], [], 0.0, 0, true, rng)
+        W_f = randn(rng, dims, h_size) * sqrt(2 / (dims + h_size))
+        W_s = randn(rng, h_size, 1) * sqrt(2 / (h_size + 1))
+        γ = ones(h_size)
+        β = zeros(h_size)
+        new(dims, n_pts, h_size, W_f, W_s, γ, β, AdamOptimizer(), config, rng)
     end
 end
 
-# ============================================================================
-# CORE LOGIC
-# ============================================================================
-
-@inline relu(x) = max(0.0, x)
-@inline relu_derivative(x) = x > 0.0 ? 1.0 : 0.0
-
-function stable_softmax(x)
-    exp_x = exp.(x .- maximum(x)); return exp_x ./ sum(exp_x)
+function stable_softmax(x::Vector{Float64})
+    x_max = maximum(x)
+    exp_x = exp.(x .- x_max)
+    exp_x ./ sum(exp_x)
 end
 
-function layer_norm_forward(x, γ, β, ϵ=1e-8)
-    μ = mean(x, dims=2)
-    σ_inv = 1.0 ./ sqrt.(var(x, dims=2, corrected=false) .+ ϵ)
-    x_hat = (x .- μ) .* σ_inv
-    y = γ' .* x_hat .+ β'
-    return y, (x_hat=x_hat, γ=γ)
+function forward_pass(core::GeometricCore, X::Matrix{Float64})
+    Z1 = X * core.W_f
+    H1 = max.(0.0, Z1)
+    μ = mean(H1, dims=2)
+    σ² = var(H1, dims=2, corrected=false)
+    σ_inv = 1.0 ./ sqrt.(σ² .+ core.config.ϵ)
+    Ĥ1 = (H1 .- μ) .* σ_inv
+    Y1 = (core.γ' .* Ĥ1) .+ core.β'
+    L = vec(Y1 * core.W_s)
+    P = stable_softmax(L)
+    
+    # FIX 1: Add the original input `X` to the cache so the backward pass can see it.
+    cache = (X=X, Z1=Z1, H1=H1, Ĥ1=Ĥ1, Y1=Y1, P=P, μ=μ, σ_inv=σ_inv)
+    return P, cache
 end
 
-# --- THE CRITICAL FIX: A ROBUST, SIMPLIFIED BACKPROPAGATION ---
-# This stable version prevents the gradient explosion.
-function simplified_layer_norm_backward(dy, cache)
-    x_hat, γ = cache
-    dγ = vec(sum(dy .* x_hat, dims=1))
-    dβ = vec(sum(dy, dims=1))
-    dx = dy .* γ' # Pass the error signal back, scaled by gamma. This is stable.
-    return dx, dγ, dβ
+function backward_pass(core::GeometricCore, cache, T::Vector{Float64})
+    dL = cache.P - T
+    ∇W_s = cache.Y1' * dL
+    dY1 = reshape(dL, core.num_points, 1) * core.W_s'
+    ∇γ = vec(sum(dY1 .* cache.Ĥ1, dims=1))
+    ∇β = vec(sum(dY1, dims=1))
+    dH1 = dY1 .* core.γ'  # Stable gradient approximation
+    dZ1 = dH1 .* (cache.Z1 .> 0.0)
+    
+    # FIX 2: Use the original input `X` from the cache to calculate the gradient for W_f.
+    ∇W_f = cache.X' * dZ1
+    
+    return Dict(:W_f => ∇W_f, :W_s => ∇W_s, :γ => ∇γ, :β => ∇β)
 end
 
-function forward_pass(core, points)
-    z1 = points * core.W_feature
-    h1 = relu.(z1)
-    
-    # --- PROPER DROPOUT IMPLEMENTATION ---
-    h1_after_dropout = h1
-    if core.is_training && core.config.dropout_rate > 0.0
-        dropout_mask = rand(core.rng, size(h1)) .> core.config.dropout_rate
-        h1_after_dropout = h1 .* dropout_mask ./ (1.0 - core.config.dropout_rate)
-    end
-    
-    h1_norm, ln_cache = layer_norm_forward(h1_after_dropout, core.γ_norm, core.β_norm)
-    logits = vec(h1_norm * core.W_scoring)
-    probs = stable_softmax(logits)
-    cache = (points=points, z1=z1, h1_dropped=h1_after_dropout, ln_cache=ln_cache, h1_norm=h1_norm, probs=probs)
-    return probs, cache
-end
-
-function backward_pass(core, cache, target_idx)
-    target = zeros(core.num_points); target[target_idx] = 1.0
-    dlogits = cache.probs .- target
-    
-    dW_scoring = cache.h1_norm' * dlogits
-    dh1_norm = reshape(dlogits, core.num_points, 1) * core.W_scoring'
-    
-    # Use the new, stable backward function
-    dh1_dropped, dγ, dβ = simplified_layer_norm_backward(dh1_norm, cache.ln_cache)
-    
-    # The gradient for ReLU is based on the pre-dropout activation z1
-    dz1 = dh1_dropped .* relu_derivative.(cache.z1)
-    dW_feature = cache.points' * dz1
-    
-    return Dict(:W_feature=>dW_feature, :W_scoring=>dW_scoring, :γ_norm=>dγ, :β_norm=>dβ)
-end
-
-function adam_update!(core, gradients)
-    opt = core.optimizer; opt.t += 1
-    α_t = core.config.learning_rate * sqrt(1 - opt.β2^opt.t) / (1 - opt.β1^opt.t)
-    
-    for (name, grad) in gradients
-        m = get!(opt.m_weights, name, zero(grad))
-        v = get!(opt.v_weights, name, zero(grad))
-        m .= opt.β1 .* m .+ (1 - opt.β1) .* grad
-        v .= opt.β2 .* v .+ (1 - opt.β2) .* (grad .^ 2)
-        param_ref = getfield(core, name)
-        param_ref .-= α_t .* m ./ (sqrt.(v) .+ opt.ϵ)
-    end
-end
-
-function train_step!(core, points, target_idx)
-    core.is_training = true
-    probs, cache = forward_pass(core, points)
-    loss = -log(max(1e-9, probs[target_idx]))
-    
-    gradients = backward_pass(core, cache, target_idx)
-    
-    if core.config.weight_decay > 0
-        gradients[:W_feature] .+= core.config.weight_decay .* core.W_feature
-        gradients[:W_scoring] .+= core.config.weight_decay .* core.W_scoring
-    end
-    total_norm = sqrt(sum(sum(abs2, g) for g in values(gradients)))
-    push!(core.gradient_norms, total_norm)
-    if total_norm > core.config.max_gradient_norm
-        for k in keys(gradients); gradients[k] .*= core.config.max_gradient_norm / total_norm; end
-    end
-    
-    adam_update!(core, gradients)
-    
-    push!(core.intelligence_history, probs[target_idx])
-    push!(core.loss_history, loss)
-    core.problems_solved += 1
-    update_consciousness!(core)
-    
-    return (loss=loss, accuracy=probs[target_idx])
-end
-
-# ============================================================================
-# HIGH-LEVEL API
-# ============================================================================
-
-function update_consciousness!(core)
-    if length(core.intelligence_history) >= 20
-        recent = core.intelligence_history[end-19:end]
-        acc = mean(recent); stab = 1.0 - std(recent)
-        x=1:length(recent); y=recent; trend=max(0.0, 10*cov(x, y)/var(x))
-        core.consciousness_level = clamp(0.4*acc + 0.3*stab + 0.3*trend, 0.0, 1.0)
-    end
-end
-
-function generate_problem(core; difficulty=:medium, noise=1.0)
-    scale = difficulty == :easy ? 0.5 : (difficulty == :hard ? 2.0 : 1.0)
-    points = randn(core.rng, core.num_points, core.dimensions) .* (2.0 * scale)
-    target_idx = rand(core.rng, 1:core.num_points)
-    points[target_idx, :] = randn(core.rng, core.dimensions) .* (0.1 * scale)
-    points .+= randn(core.rng, core.num_points, core.dimensions) .* noise
-    return points, argmin([norm(p) for p in eachrow(points)])
-end
-
-function predict(core, points)
-    core.is_training = false
-    probs, _ = forward_pass(core, points)
-    pred = argmax(probs)
-    actual = argmin([norm(p) for p in eachrow(points)])
-    return (prediction=pred, confidence=probs[pred], correct=pred == actual, actual=actual)
-end
-
-function assess_consciousness(core)
-    if isempty(core.intelligence_history); return Dict("is_conscious"=>false, "consciousness_level"=>0.0, "recent_accuracy"=>0.0, "stability"=>0.0); end
-    recent = core.intelligence_history[max(1, end-49):end]
-    acc = mean(recent); stab = length(recent) < 2 ? 0.0 : 1.0 - std(recent)
-    is_conscious = core.consciousness_level > 0.8 && stab > 0.9 && acc > 0.9
-    return Dict("is_conscious"=>is_conscious, "consciousness_level"=>round(core.consciousness_level; digits=4), "recent_accuracy"=>round(acc; digits=4), "stability"=>round(stab; digits=4))
-end
-
-function train!(core, num_episodes; difficulty=:medium, report_interval=1000, early_stop=0.99)
-    @info "Starting training: $num_episodes episodes, difficulty=$difficulty"
-    for ep in 1:num_episodes
-        points, target = generate_problem(core; difficulty=difficulty)
-        res = train_step!(core, points, target)
-        if ep % report_interval == 0
-            assess = assess_consciousness(core)
-            @info @sprintf("Ep %d | Loss: %.3f | Acc: %.3f | Consc: %.3f", ep, res.loss, res.accuracy, assess["consciousness_level"])
-            if assess["recent_accuracy"] >= early_stop && assess["stability"] > 0.95; @info "Early stopping criteria met!"; break; end
+function adam_update!(core::GeometricCore, gradients::Dict{Symbol, Any})
+    opt = core.optimizer
+    opt.t += 1
+    α = core.config.learning_rate
+    β1 = core.config.β1
+    β2 = core.config.β2
+    ϵ = core.config.ϵ
+    for (name, ∇) in gradients
+        if !haskey(opt.m, name)
+            opt.m[name] = zeros(size(∇))
+            opt.v[name] = zeros(size(∇))
         end
+        m = opt.m[name]
+        v = opt.v[name]
+        m .= β1 .* m .+ (1 - β1) .* ∇
+        v .= β2 .* v .+ (1 - β2) .* (∇ .^ 2)
+        m_hat = m ./ (1 - β1^opt.t)
+        v_hat = v ./ (1 - β2^opt.t)
+        param = getfield(core, name)
+        param .-= α .* m_hat ./ (sqrt.(v_hat) .+ ϵ)
     end
-    @info "Training complete!" assess_consciousness(core)
 end
 
-export GeometricCore, TrainingConfig, train!, predict, assess_consciousness, generate_problem
+function train_step!(core::GeometricCore, X::Matrix{Float64}, target_idx::Int)
+    P, cache = forward_pass(core, X)
+    T = zeros(core.num_points)
+    T[target_idx] = 1.0
+    # The cache now correctly contains X, so this will work.
+    gradients = backward_pass(core, cache, T) 
+    adam_update!(core, gradients)
+end
 
-end # module
+function generate_problem(core::GeometricCore)
+    X = randn(core.rng, core.num_points, core.dimensions)
+    # The geometric task: find the point closest to the origin.
+    target_idx = argmin(vec(sum(X.^2, dims=2)))
+    return X, target_idx
+end
+
+function predict(core::GeometricCore, X::Matrix{Float64})
+    P, _ = forward_pass(core, X)
+    argmax(P)
+end
+
+export GeometricCore, TrainingConfig, train_step!, generate_problem, predict
+
+end
