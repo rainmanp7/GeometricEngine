@@ -1,6 +1,7 @@
 using JSON, Random
 include("ProductionGeometricEngine.jl")
 using .GeometricEngine
+using JSON3, Statistics, LinearAlgebra, Random, Dates, Printf
 
 function run_tests()
     config = TrainingConfig()
