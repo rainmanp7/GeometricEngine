@@ -401,7 +401,8 @@ function test_symmetry_understanding(core)
     sol1, _, _ = ProtectedGeometricEngine.solve_geometric_problem(core, points)
     
     # Create a valid reflection matrix for the core's dimension
-    reflection_matrix = Matrix(I, core.dimensions, core.dimensions)
+    # FIX: Explicitly create a Float64 matrix to hold non-boolean values.
+    reflection_matrix = Matrix{Float64}(I, core.dimensions, core.dimensions)
     reflection_matrix[1,1] = -1
     
     symmetric_points = points * reflection_matrix
@@ -416,7 +417,8 @@ function test_rotation_invariance(core)
     
     # Create a valid rotation matrix for the core's dimension
     θ = π/4
-    rotation_matrix = Matrix(I, core.dimensions, core.dimensions)
+    # FIX: Explicitly create a Float64 matrix to hold non-boolean values.
+    rotation_matrix = Matrix{Float64}(I, core.dimensions, core.dimensions)
     if core.dimensions >= 2
         rotation_matrix[1,1] = cos(θ)
         rotation_matrix[1,2] = -sin(θ)
