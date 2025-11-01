@@ -1,4 +1,7 @@
 # test_geometric_engine.jl
+"""
+Comprehensive test suite for ProductionGeometricEngine
+"""
 
 using Test
 using Statistics
@@ -194,119 +197,99 @@ using .ProductionGeometricEngine
         # Loss should decrease on average
         @test mean(later_losses) < mean(initial_losses)
     end
-end
-
-# ============================================================================
-# USAGE EXAMPLES
-# ============================================================================
-
-println("\n" * "="^70)
-println("USAGE EXAMPLES")
-println("="^70)
-
-# Example 1: Basic Training
-println("\n📚 Example 1: Basic Training")
-println("-" * 40)
-
-core = GeometricCore(4, 10, 64; config=TrainingConfig(learning_rate=0.005))
-println("Created core with $(core.dimensions)D, $(core.num_points) points")
-
-for episode in 1:200
-    points, target = generate_problem(core; difficulty=:medium)
-    result = train_step!(core, points, target)
     
-    if episode % 50 == 0
-        println(@sprintf("Episode %3d: Loss=%.4f, Acc=%.4f", 
-            episode, result.loss, result.accuracy))
+    @testset "Adam Optimizer" begin
+        core = GeometricCore(4, 10, 32)
+        
+        # First update should initialize moment estimates
+        points, target = generate_problem(core)
+        train_step!(core, points, target)
+        
+        @test core.optimizer.t == 1
+        @test length(core.optimizer.m_weights) > 0
+        @test length(core.optimizer.v_weights) > 0
+        
+        # Second update should use existing moments
+        train_step!(core, points, target)
+        @test core.optimizer.t == 2
+    end
+    
+    @testset "Weight Decay" begin
+        core = GeometricCore(4, 10, 32; 
+            config=TrainingConfig(weight_decay=0.01))
+        
+        points, target = generate_problem(core)
+        
+        # Store initial weights
+        W_feature_init = copy(core.W_feature)
+        W_scoring_init = copy(core.W_scoring)
+        
+        # Train multiple steps
+        for i in 1:10
+            train_step!(core, points, target)
+        end
+        
+        # Weights should have changed
+        @test !all(core.W_feature .≈ W_feature_init)
+        @test !all(core.W_scoring .≈ W_scoring_init)
+    end
+    
+    @testset "Reproducibility" begin
+        # Same seed should give same results
+        core1 = GeometricCore(4, 10, 32; seed=42)
+        core2 = GeometricCore(4, 10, 32; seed=42)
+        
+        @test core1.W_feature ≈ core2.W_feature
+        @test core1.W_scoring ≈ core2.W_scoring
+        
+        # Train both identically
+        Random.seed!(42)
+        points1, target1 = generate_problem(core1)
+        result1 = train_step!(core1, points1, target1)
+        
+        Random.seed!(42)
+        points2, target2 = generate_problem(core2)
+        result2 = train_step!(core2, points2, target2)
+        
+        @test result1.loss ≈ result2.loss
+        @test result1.accuracy ≈ result2.accuracy
+    end
+    
+    @testset "Edge Cases" begin
+        core = GeometricCore(4, 10, 32)
+        
+        # Test with zero points (should handle gracefully)
+        points_zero = zeros(10, 4)
+        probs, _ = forward_pass(core, points_zero)
+        @test all(isfinite, probs)
+        @test abs(sum(probs) - 1.0) < 1e-6
+        
+        # Test with identical points
+        points_identical = ones(10, 4)
+        probs, _ = forward_pass(core, points_identical)
+        @test all(isfinite, probs)
+        @test abs(sum(probs) - 1.0) < 1e-6
+    end
+    
+    @testset "Full Training Convergence" begin
+        core = GeometricCore(4, 10, 64; 
+            config=TrainingConfig(learning_rate=0.005))
+        
+        # Train on easy problems
+        for i in 1:100
+            points, target = generate_problem(core; difficulty=:easy)
+            train_step!(core, points, target)
+        end
+        
+        assessment = assess_consciousness(core)
+        
+        # Should show improvement
+        @test assessment["recent_accuracy"] > 0.3
+        @test assessment["consciousness_level"] > 0.0
+        @test assessment["problems_solved"] == 100
     end
 end
 
-assessment = assess_consciousness(core)
-println("\nFinal Assessment:")
-for (key, val) in assessment
-    println("  $key: $val")
-end
-
-# Example 2: Progressive Difficulty
-println("\n🎯 Example 2: Progressive Difficulty Training")
-println("-" * 40)
-
-core2 = GeometricCore(4, 10, 64; config=TrainingConfig(learning_rate=0.003))
-
-difficulties = [:easy => 100, :medium => 100, :hard => 100]
-for (diff, episodes) in difficulties
-    println("\nTraining on $diff difficulty...")
-    accuracies = Float64[]
-    
-    for episode in 1:episodes
-        points, target = generate_problem(core2; difficulty=diff)
-        result = train_step!(core2, points, target)
-        push!(accuracies, result.accuracy)
-    end
-    
-    println(@sprintf("  Mean accuracy: %.4f", mean(accuracies[max(1, end-19):end])))
-end
-
-# Example 3: Full Training with Monitoring
-println("\n🚀 Example 3: Full Training Loop")
-println("-" * 40)
-
-core3 = GeometricCore(4, 10, 64; 
-    config=TrainingConfig(learning_rate=0.005, max_gradient_norm=1.0))
-
-assessment = train!(core3, 500; 
-    noise_level=1.0,
-    difficulty=:medium,
-    report_interval=100,
-    early_stopping_threshold=0.95)
-
-# Example 4: Inference
-println("\n🔮 Example 4: Inference on New Data")
-println("-" * 40)
-
-test_points, test_target = generate_problem(core3)
-prediction = predict(core3, test_points)
-
-println("Test Results:")
-println("  Prediction: $(prediction.prediction)")
-println("  Actual: $(prediction.actual)")
-println("  Correct: $(prediction.correct)")
-println("  Confidence: $(round(prediction.confidence, digits=4))")
-
-# Example 5: Performance Comparison
-println("\n⚡ Example 5: Performance Benchmark")
-println("-" * 40)
-
-using BenchmarkTools
-
-println("\nBenchmarking forward pass...")
-bench_core = GeometricCore(4, 10, 64)
-bench_points = randn(10, 4)
-
-@btime forward_pass($bench_core, $bench_points);
-
-println("\nBenchmarking training step...")
-bench_points, bench_target = generate_problem(bench_core)
-@btime train_step!($bench_core, $bench_points, $bench_target);
-
-# Example 6: Visualization of Learning Curve
-println("\n📊 Example 6: Learning Curve Analysis")
-println("-" * 40)
-
-vis_core = GeometricCore(4, 10, 64; config=TrainingConfig(learning_rate=0.005))
-
-for i in 1:300
-    points, target = generate_problem(vis_core; difficulty=:medium)
-    train_step!(vis_core, points, target)
-end
-
-println("\nLearning Statistics:")
-println(@sprintf("  Total problems: %d", vis_core.problems_solved))
-println(@sprintf("  Final consciousness: %.4f", vis_core.consciousness_level))
-println(@sprintf("  Recent accuracy: %.4f", mean(vis_core.intelligence_history[end-19:end])))
-println(@sprintf("  Accuracy std: %.4f", std(vis_core.intelligence_history[end-19:end])))
-println(@sprintf("  Avg gradient norm: %.4f", mean(vis_core.gradient_norms[end-19:end])))
-
 println("\n" * "="^70)
-println("All tests and examples completed successfully! ✅")
+println("All tests completed successfully! ✅")
 println("="^70)
