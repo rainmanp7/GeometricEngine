@@ -1,14 +1,15 @@
-# production_proof_suite.jl (Corrected Test Script)
+# production_proof_suite.jl (Corrected for JSON3)
 
 """
 This script runs a simple, clean test to verify that the GeometricEngine
 can learn the geometric reasoning task.
 """
 
-# FIX: Add `using Statistics` to make the `mean()` function available.
-using JSON3, Statistics, LinearAlgebra, Random, Dates, Printf
+# FIX: Use JSON3 and Statistics correctly.
+using JSON3, Random, Statistics
 
-include("ProductionGeometricEngine.jl")
+# This must be the name of your engine file.
+include("ProductionGeometricEngine.jl") 
 using .GeometricEngine
 
 function run_tests()
@@ -54,8 +55,8 @@ function run_tests()
         "learning_achieved" => post_acc > pre_acc + 0.1
     )
 
-    # JSON output only
-    println(JSON.json(results, 4))
+    # FIX: Use the correct JSON3 syntax to write the output string.
+    println(JSON3.write(results, indent=4))
 end
 
 run_tests()
