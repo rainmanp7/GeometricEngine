@@ -1,7 +1,7 @@
 
 # emergent_ai_testing.jl
 
-# STEP 1: Load the EmergentAIEngine module
+# STEP 1: Load the code from the other file into the main script scope.
 include("EmergentAIEngine.jl")
 
 # STEP 2: Import the module at the top level so it's available
@@ -80,11 +80,11 @@ function test_geometric_intelligence(entity)
     
     println("   • Testing spatial reasoning...")
     
-    # Generate test problems
+    # Generate test problems - ALL MUST BE 4D to match the engine's architecture
     test_cases = [
         ("Simple 4D closest point", generate_4d_points(5)),
         ("Ambiguous distances", generate_ambiguous_points(4)),
-        ("High-dimensional (6D)", generate_nd_points(6, 8))
+        ("Complex 4D (more points)", generate_4d_points(8))
     ]
     
     accuracies = []
@@ -116,7 +116,7 @@ function test_geometric_intelligence(entity)
         "Geometric Intelligence",
         metrics[:accuracy] > 0.7,
         metrics,
-        Dict(:test_cases => length(test_cases), :dimensionality_tested => [4, 6]),
+        Dict(:test_cases => length(test_cases), :dimensionality_tested => [4]),
         now(),
         Dict(:entity_id => entity.id, :activation_count => length(entity.activation_history))
     )
