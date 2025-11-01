@@ -85,7 +85,8 @@ end
 
 # --- REWRITTEN LEARNING FUNCTION ---
 # Backpropagation for the correct, two-layer point-wise architecture.
-function geometric_learn!(core::GeometricConsciousnessCore, points::Matrix{Float64}, true_answer::Int; learning_rate::Float64=0.002) # Using Adam's default LR
+# FIX: Increased learning rate to accelerate convergence.
+function geometric_learn!(core::GeometricConsciousnessCore, points::Matrix{Float64}, true_answer::Int; learning_rate::Float64=0.02)
     num_points = size(points, 1)
     
     # Forward pass
