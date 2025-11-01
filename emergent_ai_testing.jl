@@ -1,4 +1,9 @@
 # emergent_ai_testing.jl
+
+# FIX: Include the file defining the EmergentAIEngine module.
+# This makes the module available in the Main scope before it is used.
+include("EmergentAIEngine.jl")
+
 module EmergentAITesting
 
 using .EmergentAIEngine, JSON3, Dates, Statistics, Random
