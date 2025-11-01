@@ -129,7 +129,11 @@ end
 # ------------------------------------------------------------------------
 # Prediction
 # ------------------------------------------------------------------------
-predict(core::GeometricCore, X) = (P,_)=forward(core,X); argmax(P)
+# --- THIS IS THE CORRECTED FUNCTION ---
+function predict(core::GeometricCore, X)
+    P, _ = forward(core, X)
+    return argmax(P)
+end
 
 export GeometricCore, TrainingConfig, make_problem, train_step!, predict
 
