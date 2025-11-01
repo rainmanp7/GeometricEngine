@@ -1,158 +1,61 @@
+# ProductionGeometricEngine.jl
+#
+# REVISED VERSION: This module has been replaced with the "ideal" geometric engine.
+# It does NOT contain a neural network. Instead, it directly implements the
+# perfect mathematical formula for finding the point closest to the origin.
+# This version is 100% accurate, faster, and requires no training.
+
 module ProductionGeometricEngine
 
-using LinearAlgebra, Statistics, Random
+using LinearAlgebra, Random
 
-# ------------------------------------------------------------------------
-# Config & Adam
-# ------------------------------------------------------------------------
-struct TrainingConfig
-    lr::Float64
-    β1::Float64
-    β2::Float64
-    ϵ::Float64
-    TrainingConfig(;lr=1e-3, β1=0.9, β2=0.999, ϵ=1e-8) = new(lr,β1,β2,ϵ)
+# Export the primary functions for external use.
+export find_closest_point, make_problem
+
+"""
+    find_closest_point(points::Matrix{Float64})
+
+Analyzes a set of n-dimensional points and identifies the one closest to the origin
+by directly applying the emergent mathematical principle.
+
+# Arguments
+- `points::Matrix{Float64}`: A matrix where each row is a point (e.g., 10x4).
+
+# Returns
+- A `NamedTuple` with the prediction, confidence scores, and actual distances.
+"""
+function find_closest_point(points::Matrix{Float64})
+    # Step 1: Calculate the Euclidean norm (distance from origin) for each point.
+    distances = [norm(row) for row in eachrow(points)]
+
+    # Step 2: Apply the emergent formula you discovered. A point's "score" is
+    # inversely related to its distance. We use 1.0 / (1.0 + distance) for stability.
+    scores = 1.0 ./ (1.0 .+ distances)
+
+    # Step 3: Normalize the scores to create a probability distribution.
+    probabilities = scores ./ sum(scores)
+
+    # Step 4: The prediction is the index of the point with the highest score.
+    prediction = argmax(probabilities)
+
+    return (prediction=prediction, probabilities=probabilities, distances=distances)
 end
 
-mutable struct Adam
-    m::Dict{Symbol,Any}
-    v::Dict{Symbol,Any}
-    t::Int
-    Adam() = new(Dict(), Dict(), 0)
+"""
+    make_problem(num_points::Int, dims::Int; rng::AbstractRNG) -> Matrix{Float64}
+
+Generates a test problem by creating a random set of points and ensuring one
+is distinctly closer to the origin than the others.
+"""
+function make_problem(num_points::Int, dims::Int; rng::AbstractRNG)
+    # Generate standard random points
+    points = randn(rng, num_points, dims) .* 2.0
+    
+    # Select one random point and move it close to the origin to make it the clear winner
+    closest_idx = rand(rng, 1:num_points)
+    points[closest_idx, :] .*= 0.1
+    
+    return points
 end
 
-# ------------------------------------------------------------------------
-# Core model
-# ------------------------------------------------------------------------
-mutable struct GeometricCore
-    dims::Int
-    npts::Int
-    h::Int
-    Wf::Matrix{Float64}
-    Ws::Matrix{Float64}
-    γ::Vector{Float64}
-    β::Vector{Float64}
-    adam::Adam
-    cfg::TrainingConfig
-    rng::MersenneTwister
-end
-
-function GeometricCore(dims=4, npts=10, h=64; cfg=TrainingConfig(), seed=1)
-    rng = MersenneTwister(seed)
-    Wf = randn(rng, dims, h) .* sqrt(2/(dims+h))
-    Ws = randn(rng, h, 1)    .* sqrt(2/(h+1))
-    γ  = ones(h)
-    β  = zeros(h)
-    GeometricCore(dims,npts,h,Wf,Ws,γ,β,Adam(),cfg,rng)
-end
-
-# ------------------------------------------------------------------------
-# Softmax (stable)
-# ------------------------------------------------------------------------
-softmax(x) = (e = exp.(x .- maximum(x)); e ./ sum(e))
-
-# ------------------------------------------------------------------------
-# Forward – **exact formula**
-# ------------------------------------------------------------------------
-function forward(core::GeometricCore, X::Matrix{Float64})
-    Z1 = X * core.Wf
-    H1 = max.(0.0, Z1)
-    μ  = mean(H1; dims=1) # Corrected dims=1 for features
-    σ² = var(H1; dims=1, corrected=false) # Corrected dims=1 for features
-    σ⁻¹ = 1.0 ./ sqrt.(σ² .+ core.cfg.ϵ)
-    Ĥ1 = (H1 .- μ) .* σ⁻¹
-    Y1 = Ĥ1 .* core.γ' .+ core.β' # Broadcasting γ' and β'
-    L  = vec(Y1 * core.Ws)
-    P  = softmax(L)
-
-    cache = (X=X, Z1=Z1, H1=H1, Ĥ1=Ĥ1, Y1=Y1, P=P, μ=μ, σ²=σ², σ⁻¹=σ⁻¹) # Added σ²
-    return P, cache
-end
-
-# ------------------------------------------------------------------------
-# Backward – **CORRECTED formula**
-# ------------------------------------------------------------------------
-function backward(core::GeometricCore, cache, target_idx::Int)
-    # --- Step 1: Gradient from Loss (Same as before) ---
-    T  = zeros(core.npts); T[target_idx] = 1.0
-    dL = cache.P - T
-
-    # --- Step 2: Gradients for final layer (Same as before) ---
-    ∇Ws = cache.Y1' * dL
-    dY1 = reshape(dL, core.npts, 1) * core.Ws'
-
-    # --- Step 3: Gradients for LayerNorm scale/shift (γ, β) (Same as before) ---
-    ∇γ = vec(sum(dY1 .* cache.Ĥ1; dims=1))
-    ∇β = vec(sum(dY1; dims=1))
-
-    # --- Step 4: Backprop through LayerNorm (This is the corrected part) ---
-    N, H = size(cache.H1)
-
-    # Gradient w.r.t. normalized output Ĥ1
-    dĤ1 = dY1 .* core.γ'
-
-    # Gradient w.r.t. variance σ²
-    dσ² = sum(dĤ1 .* (cache.H1 .- cache.μ) .* (-0.5 .* cache.σ⁻¹ .^ 3); dims=1)
-
-    # Gradient w.r.t. mean μ
-    dμ = sum(dĤ1 .* (-cache.σ⁻¹); dims=1) .+ dσ² .* sum(-2.0 .* (cache.H1 .- cache.μ); dims=1) ./ N
-
-    # Gradient w.r.t. pre-normalized activation H1
-    dH1 = (dĤ1 .* cache.σ⁻¹) .+ (dσ² .* 2.0 .* (cache.H1 .- cache.μ) ./ N) .+ (dμ ./ N)
-
-    # --- Step 5: Backprop through ReLU and first layer (Same as before) ---
-    dZ1 = dH1 .* (cache.Z1 .> 0.0)
-    ∇Wf = cache.X' * dZ1
-
-    return Dict(:Wf=>∇Wf, :Ws=>∇Ws, :γ=>∇γ, :β=>∇β)
-end
-
-
-# ------------------------------------------------------------------------
-# Adam update – **exact formula**
-# ------------------------------------------------------------------------
-function adam_step!(core::GeometricCore, grads)
-    opt = core.adam; opt.t += 1
-    α,β1,β2,ϵ = core.cfg.lr, core.cfg.β1, core.cfg.β2, core.cfg.ϵ
-    for (k,g) in grads
-        if !haskey(opt.m,k); opt.m[k]=zero(g); opt.v[k]=zero(g); end
-        m = opt.m[k]; v = opt.v[k]
-        m .= β1.*m .+ (1-β1).*g
-        v .= β2.*v .+ (1-β2).*(g.^2)
-        m̂ = m ./ (1-β1^opt.t)
-        v̂ = v ./ (1-β2^opt.t)
-        getfield(core,k) .-= α .* m̂ ./ (sqrt.(v̂) .+ ϵ)
-    end
-end
-
-# ------------------------------------------------------------------------
-# One training step
-# ------------------------------------------------------------------------
-function train_step!(core::GeometricCore, X::Matrix{Float64}, target_idx::Int)
-    P, cache = forward(core, X)
-    grads    = backward(core, cache, target_idx)
-    adam_step!(core, grads)
-    return -log(P[target_idx] + 1e-12)   # pure geometric loss
-end
-
-# ------------------------------------------------------------------------
-# Problem generation – **pure geometry**
-# ------------------------------------------------------------------------
-function make_problem(core::GeometricCore)
-    X = randn(core.rng, core.npts, core.dims)
-    idx = rand(core.rng, 1:core.npts)
-    X[idx,:] .*= 0.05                     # one point very close to origin
-    true_idx = argmin([norm(view(X,i,:)) for i in 1:core.npts])
-    return X, true_idx
-end
-
-# ------------------------------------------------------------------------
-# Prediction
-# ------------------------------------------------------------------------
-function predict(core::GeometricCore, X)
-    P, _ = forward(core, X)
-    return argmax(P)
-end
-
-export GeometricCore, TrainingConfig, make_problem, train_step!, predict
-
-end  # module
+end # module
