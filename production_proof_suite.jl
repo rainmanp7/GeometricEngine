@@ -1,4 +1,13 @@
-using JSON3, Random
+# production_proof_suite.jl (Corrected Test Script)
+
+"""
+This script runs a simple, clean test to verify that the GeometricEngine
+can learn the geometric reasoning task.
+"""
+
+# FIX: Add `using Statistics` to make the `mean()` function available.
+using JSON, Random, Statistics
+
 include("ProductionGeometricEngine.jl")
 using .GeometricEngine
 
@@ -38,6 +47,13 @@ function run_tests()
     # Emergent if accuracy improves significantly and geometrically (non-statistical threshold)
     results["emergent_properties"]["geometric_reasoning"] = post_acc > 0.8 && post_acc > pre_acc + 0.5
     
+    # Add summary statistics to the results
+    results["summary"] = Dict(
+        "pre_train_mean_accuracy" => pre_acc,
+        "post_train_mean_accuracy" => post_acc,
+        "learning_achieved" => post_acc > pre_acc + 0.1
+    )
+
     # JSON output only
     println(JSON.json(results, 4))
 end
