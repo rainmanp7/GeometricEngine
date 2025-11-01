@@ -30,7 +30,7 @@ jobs:
     - name: Run Production Proof Suite
       id: proof_run
       # Run the new production suite file
-      run: julia production_proof_suite.jl
+      run: julia emergent_ai_testing.jl
       
     - name: Upload Proof Results
       if: steps.proof_run.outcome == 'success'
