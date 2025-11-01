@@ -24,8 +24,15 @@ jobs:
       uses: julia-actions/cache@v1
         
     - name: Install dependencies
-      # The new suite only requires JSON3
       run: julia -e 'using Pkg; Pkg.add("JSON3")'
+        
+    # --- START DEBUGGING STEPS ---
+    - name: 1. Verify checked out files
+      run: ls -R
+      
+    - name: 2. Display content of testing script
+      run: cat emergent_ai_testing.jl
+    # --- END DEBUGGING STEPS ---
         
     - name: Run Production Proof Suite
       id: proof_run
@@ -33,10 +40,9 @@ jobs:
       run: julia emergent_ai_testing.jl
       
     - name: Upload Proof Results
-      if: steps.proof_run.outcome == 'success'
+      # The 'if' condition is not needed, this step only runs on success by default.
       uses: actions/upload-artifact@v4
       with:
         name: production-proof-results-${{ github.run_id }}
-        path: |
-          proof_results.json
-          proof_summary.txt
+        # FIX: Use a wildcard to find the generated JSON report file, as the name is dynamic.
+        path: emergent_ai_report_*.json
