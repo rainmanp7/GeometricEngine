@@ -6,7 +6,20 @@ Evidence collection for academic publication
 
 using JSON3, Statistics, LinearAlgebra, Random, Dates
 
-include("ProtectedGeometricEngine.jl")
+# This assumes ProtectedGeometricEngine.jl is in the same directory.
+# If it's not found, you might need to adjust the include path.
+try
+    include("ProtectedGeometricEngine.jl")
+catch e
+    if e isa SystemError
+        println("❌ ERROR: Could not find 'ProtectedGeometricEngine.jl'.")
+        println("   Please ensure this file is in the same directory as 'proof_suite.jl'.")
+        exit(1)
+    else
+        rethrow(e)
+    end
+end
+
 
 function run_comprehensive_proof()
     println("🧪 STARTING GEOMETRIC INTELLIGENCE PROOF SUITE")
@@ -68,7 +81,8 @@ function run_comprehensive_proof()
                 "partial_results" => proof_results
             )
             open("partial_proof_results.json", "w") do f
-                JSON3.write(f, partial_report, 4)
+                # FIX: Used the 'indent' keyword argument for pretty-printing.
+                JSON3.write(f, partial_report; indent=4)
             end
         end
         
@@ -316,7 +330,8 @@ function save_proof_results(report)
     """Save proof results with academic formatting"""
     # Save detailed JSON results
     open("proof_results.json", "w") do f
-        JSON3.write(f, report, 4)
+        # FIX: Used the 'indent' keyword argument for pretty-printing.
+        JSON3.write(f, report; indent=4)
     end
     
     # Generate academic summary
