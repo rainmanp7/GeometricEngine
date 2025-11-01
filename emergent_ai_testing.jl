@@ -1,3 +1,4 @@
+
 # emergent_ai_testing.jl
 
 # STEP 1: Load the code from the other file into the main script scope.
@@ -9,6 +10,7 @@ module EmergentAITesting
 # STEP 3: Inside this module, use a '.' to tell Julia to find "EmergentAIEngine"
 # in the parent scope (where 'include' loaded it), not in the installed packages.
 using .EmergentAIEngine, JSON3, Dates, Statistics, Random
+using LinearAlgebra  # Added for norm function
 
 # ==================== TEST FRAMEWORK ====================
 
@@ -378,10 +380,8 @@ function generate_json_report(test_results, geo_entity, conscious_entity)
     # Calculate summary metrics
     success_rate = mean([r.success for r in test_results])
     
-    # === FIX: Break the complex line into two to resolve the ParseError ===
-    # 1. First, create a list of the confidences that exist.
+    # Fixed: Calculate average confidence safely
     confidences_with_key = [r.metrics[:average_confidence] for r in test_results if haskey(r.metrics, :average_confidence)]
-    # 2. Then, calculate the mean, handling the case where the list might be empty.
     avg_confidence = isempty(confidences_with_key) ? 0.0 : mean(confidences_with_key)
     
     report[:summary_metrics] = Dict(
@@ -404,7 +404,7 @@ function generate_json_report(test_results, geo_entity, conscious_entity)
     )
     
     # Save JSON report
-    json_string = JSON3.write(report, pretty=true)
+    json_string = JSON3.write(report)
     filename = "emergent_ai_report_$(Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")).json"
     
     open(filename, "w") do file
@@ -440,3 +440,4 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("\n🎯 TESTING COMPLETE")
     println("Evidence of emergent intelligence has been documented in JSON report.")
 end
+
