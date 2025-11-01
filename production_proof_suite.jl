@@ -217,7 +217,7 @@ function generate_proof_report(proof_results)
         Float64(emergence_proven),
         dim_inv_analysis["mean_accuracy"]
     ]
-    proof_score = mean(score_components)
+    proof_score = mean(filter(isfinite, score_components))
     
     report["overall_assessment"] = Dict(
         "proof_score" => proof_score,
