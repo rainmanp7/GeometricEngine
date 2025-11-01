@@ -61,7 +61,7 @@ end
 relu_activation(x::Matrix{Float64}) = max.(x, 0.0)
 layer_norm(x::Matrix{Float64}, g::Vector{Float64}, b::Vector{Float64}) = ((x .- mean(x, dims=2)) ./ (std(x, dims=2) .+ 1e-8)) .* g' .+ b'
 
-# --- FORWARD PASS (Simplified back to original) ---
+# --- FORWARD PASS (Unchanged) ---
 function geometric_forward(core::GeometricConsciousnessCore, points::Matrix{Float64})
     features = points * core.feature_weights
     activated_features = relu_activation(features)
@@ -87,20 +87,18 @@ function geometric_learn!(core::GeometricConsciousnessCore, points::Matrix{Float
     target = zeros(N); target[true_answer + 1] = 1.0
     d_scores = reshape(predictions - target, N, 1)
 
-    # --- Backpropagation (The simple, stable version) ---
+    # --- Backpropagation (Simple, stable version) ---
     d_normalized_features = d_scores * core.scoring_weights'
     d_scoring_weights = normalized_features' * d_scores
     
-    # NOTE: We use the simple, stable backprop. The ADAM optimizer will handle the resulting noisy gradients.
-    # The gradients for layer norm and feature weights are simplified but directionally useful.
     d_features = d_normalized_features .* (features .> 0)
     d_feature_weights = points' * d_features
     
-    # (Simplified gradients for gamma and beta)
-    d_layer_norm_gamma = sum(d_normalized_features .* features, dims=1)'
-    d_layer_norm_beta = sum(d_normalized_features, dims=1)'
+    # FIX: Convert the (H x 1) gradient matrices into (H,) vectors to match types.
+    d_layer_norm_gamma = vec(sum(d_normalized_features .* features, dims=1)')
+    d_layer_norm_beta = vec(sum(d_normalized_features, dims=1)')
 
-    # --- ADAM UPDATE (The key fix) ---
+    # --- ADAM UPDATE ---
     core.t += 1
     
     # Update feature_weights
