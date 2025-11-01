@@ -56,37 +56,56 @@ softmax(x) = (e = exp.(x .- maximum(x)); e ./ sum(e))
 function forward(core::GeometricCore, X::Matrix{Float64})
     Z1 = X * core.Wf
     H1 = max.(0.0, Z1)
-    μ  = mean(H1; dims=2)
-    σ² = var(H1; dims=2, corrected=false)
+    μ  = mean(H1; dims=1) # Corrected dims=1 for features
+    σ² = var(H1; dims=1, corrected=false) # Corrected dims=1 for features
     σ⁻¹ = 1.0 ./ sqrt.(σ² .+ core.cfg.ϵ)
     Ĥ1 = (H1 .- μ) .* σ⁻¹
-    Y1 = core.γ' .* Ĥ1 .+ core.β'
+    Y1 = Ĥ1 .* core.γ' .+ core.β' # Broadcasting γ' and β'
     L  = vec(Y1 * core.Ws)
     P  = softmax(L)
 
-    cache = (X=X, Z1=Z1, H1=H1, Ĥ1=Ĥ1, Y1=Y1, P=P, μ=μ, σ⁻¹=σ⁻¹)
+    cache = (X=X, Z1=Z1, H1=H1, Ĥ1=Ĥ1, Y1=Y1, P=P, μ=μ, σ²=σ², σ⁻¹=σ⁻¹) # Added σ²
     return P, cache
 end
 
 # ------------------------------------------------------------------------
-# Backward – **exact formula** (now has X & P)
+# Backward – **CORRECTED formula**
 # ------------------------------------------------------------------------
 function backward(core::GeometricCore, cache, target_idx::Int)
+    # --- Step 1: Gradient from Loss (Same as before) ---
     T  = zeros(core.npts); T[target_idx] = 1.0
     dL = cache.P - T
 
+    # --- Step 2: Gradients for final layer (Same as before) ---
     ∇Ws = cache.Y1' * dL
     dY1 = reshape(dL, core.npts, 1) * core.Ws'
 
+    # --- Step 3: Gradients for LayerNorm scale/shift (γ, β) (Same as before) ---
     ∇γ = vec(sum(dY1 .* cache.Ĥ1; dims=1))
     ∇β = vec(sum(dY1; dims=1))
 
-    dH1 = dY1 .* core.γ'                     # stable approximation
+    # --- Step 4: Backprop through LayerNorm (This is the corrected part) ---
+    N, H = size(cache.H1)
+
+    # Gradient w.r.t. normalized output Ĥ1
+    dĤ1 = dY1 .* core.γ'
+
+    # Gradient w.r.t. variance σ²
+    dσ² = sum(dĤ1 .* (cache.H1 .- cache.μ) .* (-0.5 .* cache.σ⁻¹ .^ 3); dims=1)
+
+    # Gradient w.r.t. mean μ
+    dμ = sum(dĤ1 .* (-cache.σ⁻¹); dims=1) .+ dσ² .* sum(-2.0 .* (cache.H1 .- cache.μ); dims=1) ./ N
+
+    # Gradient w.r.t. pre-normalized activation H1
+    dH1 = (dĤ1 .* cache.σ⁻¹) .+ (dσ² .* 2.0 .* (cache.H1 .- cache.μ) ./ N) .+ (dμ ./ N)
+
+    # --- Step 5: Backprop through ReLU and first layer (Same as before) ---
     dZ1 = dH1 .* (cache.Z1 .> 0.0)
     ∇Wf = cache.X' * dZ1
 
     return Dict(:Wf=>∇Wf, :Ws=>∇Ws, :γ=>∇γ, :β=>∇β)
 end
+
 
 # ------------------------------------------------------------------------
 # Adam update – **exact formula**
@@ -129,7 +148,6 @@ end
 # ------------------------------------------------------------------------
 # Prediction
 # ------------------------------------------------------------------------
-# --- THIS IS THE CORRECTED FUNCTION ---
 function predict(core::GeometricCore, X)
     P, _ = forward(core, X)
     return argmax(P)
