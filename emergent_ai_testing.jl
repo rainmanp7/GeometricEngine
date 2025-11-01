@@ -1,13 +1,14 @@
 # emergent_ai_testing.jl
 
-# FIX 1: Load the engine file BEFORE the test module is defined.
-# This makes the EmergentAIEngine module available to be used.
+# STEP 1: Load the code from the other file into the main script scope. This is correct.
 include("EmergentAIEngine.jl")
 
+# STEP 2: Define our testing module.
 module EmergentAITesting
 
-# FIX 2: Use the loaded module directly (the dot is not needed and can be fragile).
-using EmergentAIEngine, JSON3, Dates, Statistics, Random
+# STEP 3: Inside this module, use a '.' to tell Julia to find "EmergentAIEngine"
+# in the parent scope (where 'include' loaded it), not in the installed packages.
+using .EmergentAIEngine, JSON3, Dates, Statistics, Random
 
 # ==================== TEST FRAMEWORK ====================
 
@@ -352,85 +353,4 @@ function generate_json_report(test_results, geo_entity, conscious_entity)
                 :activation_count => length(geo_entity.activation_history),
                 :metacognitive_weights => geo_entity.metacognitive_weights
             ),
-            :conscious_entity => Dict(
-                :id => conscious_entity.id,
-                :consciousness_level => conscious_entity.consciousness_level,
-                :self_model => conscious_entity.self_model
-            )
-        ),
-        :test_results => [],
-        :summary_metrics => Dict(),
-        :emergence_assessment => Dict()
-    )
-    
-    # Compile test results
-    for result in test_results
-        push!(report[:test_results], Dict(
-            :test_name => result.test_name,
-            :success => result.success,
-            :metrics => result.metrics,
-            :insights => result.insights,
-            :timestamp => result.timestamp
-        ))
-    end
-    
-    # Calculate summary metrics
-    success_rate = mean([r.success for r in test_results])
-    avg_confidence = mean([r.metrics[:average_confidence] for r in test_results if haskey(r.metrics, :average_confidence)])
-    
-    report[:summary_metrics] = Dict(
-        :overall_success_rate => success_rate,
-        :average_confidence => avg_confidence,
-        :total_tests => length(test_results),
-        :successful_tests => count(r -> r.success, test_results),
-        :emergence_strength => success_rate * avg_confidence
-    )
-    
-    # Emergence assessment
-    report[:emergence_assessment] = Dict(
-        :geometric_intelligence_emerged => any(r -> r.test_name == "Geometric Intelligence" && r.success, test_results),
-        :metacognition_emerged => any(r -> r.test_name == "Metacognition" && r.success, test_results),
-        :conscious_processing_emerged => any(r -> r.test_name == "Conscious Processing" && r.success, test_results),
-        :cross_domain_emerged => any(r -> r.test_name == "Cross-Domain Reasoning" && r.success, test_results),
-        :active_learning_emerged => any(r -> r.test_name == "Active Learning" && r.success, test_results),
-        :consciousness_indicators_present => any(r -> r.test_name == "Consciousness Indicators" && r.success, test_results),
-        :overall_emergence_score => report[:summary_metrics][:emergence_strength]
-    )
-    
-    # Save JSON report
-    json_string = JSON3.write(report, pretty=true)
-    filename = "emergent_ai_report_$(Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")).json"
-    
-    open(filename, "w") do file
-        write(file, json_string)
-    end
-    
-    println("\n📊 COMPREHENSIVE TEST REPORT GENERATED")
-    println("=====================================")
-    println("File: $filename")
-    println("Overall Success Rate: $(round(success_rate * 100, digits=1))%")
-    println("Emergence Score: $(round(report[:summary_metrics][:emergence_strength] * 100, digits=1))%")
-    println("\nEmergence Assessment:")
-    for (capability, emerged) in report[:emergence_assessment]
-        if capability != :overall_emergence_score
-            println("  $(capability): $(emerged ? "✅ EMERGED" : "❌ NOT DETECTED")")
-        end
-    end
-    
-    return report
-end
-
-end # module
-
-# ==================== EXECUTION ====================
-
-# Run the complete test suite
-if abspath(PROGRAM_FILE) == @__FILE__
-    println("🚀 LAUNCHING EMERGENT AI TEST SUITE")
-    println("Testing: Geometric Intelligence, Metacognition, Consciousness, Cross-Domain Reasoning")
-    
-    results = EmergentAITesting.run_comprehensive_tests()
-    
-    println("\n🎯 TESTING COMPLETE")
-    println("Evidence of emergent intelligence has been documented in JSON report.")
-end
+            
