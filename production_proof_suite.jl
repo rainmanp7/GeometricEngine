@@ -6,7 +6,7 @@ can learn the geometric reasoning task.
 """
 
 # FIX: Add `using Statistics` to make the `mean()` function available.
-using JSON3, Random, Statistics
+using JSON3, Statistics, LinearAlgebra, Random, Dates, Printf
 
 include("ProductionGeometricEngine.jl")
 using .GeometricEngine
