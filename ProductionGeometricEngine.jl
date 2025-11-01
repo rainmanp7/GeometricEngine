@@ -1,4 +1,4 @@
-# GeometricEngine.jl (The Final, Corrected Version)
+# GeometricEngine.jl (Final Type-Corrected Version)
 
 module GeometricEngine
 
@@ -57,9 +57,7 @@ function forward_pass(core::GeometricCore, X::Matrix{Float64})
     Y1 = (core.γ' .* Ĥ1) .+ core.β'
     L = vec(Y1 * core.W_s)
     P = stable_softmax(L)
-    
-    # FIX 1: Add the original input `X` to the cache so the backward pass can see it.
-    cache = (X=X, Z1=Z1, H1=H1, Ĥ1=Ĥ1, Y1=Y1, P=P, μ=μ, σ_inv=σ_inv)
+    cache = (X=X, Z1=Z1, H1=H1, Ĥ1=Ĥ1, Y1=Y1, P=P)
     return P, cache
 end
 
@@ -69,16 +67,15 @@ function backward_pass(core::GeometricCore, cache, T::Vector{Float64})
     dY1 = reshape(dL, core.num_points, 1) * core.W_s'
     ∇γ = vec(sum(dY1 .* cache.Ĥ1, dims=1))
     ∇β = vec(sum(dY1, dims=1))
-    dH1 = dY1 .* core.γ'  # Stable gradient approximation
+    dH1 = dY1 .* core.γ'
     dZ1 = dH1 .* (cache.Z1 .> 0.0)
-    
-    # FIX 2: Use the original input `X` from the cache to calculate the gradient for W_f.
     ∇W_f = cache.X' * dZ1
-    
     return Dict(:W_f => ∇W_f, :W_s => ∇W_s, :γ => ∇γ, :β => ∇β)
 end
 
-function adam_update!(core::GeometricCore, gradients::Dict{Symbol, Any})
+# --- THE CRITICAL FIX: Make the signature more generic ---
+# Change `Dict{Symbol, Any}` to just `Dict` to accept any dictionary of gradients.
+function adam_update!(core::GeometricCore, gradients::Dict)
     opt = core.optimizer
     opt.t += 1
     α = core.config.learning_rate
@@ -105,14 +102,12 @@ function train_step!(core::GeometricCore, X::Matrix{Float64}, target_idx::Int)
     P, cache = forward_pass(core, X)
     T = zeros(core.num_points)
     T[target_idx] = 1.0
-    # The cache now correctly contains X, so this will work.
-    gradients = backward_pass(core, cache, T) 
+    gradients = backward_pass(core, cache, T)
     adam_update!(core, gradients)
 end
 
 function generate_problem(core::GeometricCore)
     X = randn(core.rng, core.num_points, core.dimensions)
-    # The geometric task: find the point closest to the origin.
     target_idx = argmin(vec(sum(X.^2, dims=2)))
     return X, target_idx
 end
