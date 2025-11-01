@@ -1,4 +1,4 @@
-# production_proof_suite.jl (with randomized seeds)
+# production_proof_suite.jl (with down-sampled trajectory)
 
 """
 🔬 GEOMETRIC INTELLIGENCE PRODUCTION PROOF SUITE
@@ -91,7 +91,6 @@ function test_dimensional_invariance()
 
     for (i, dim) in enumerate(dimensions)
         println("   Testing $dim-dimensional space...")
-        # FIX: Provide a unique seed for each core to ensure independent tests.
         core = GeometricCore(dim, 10, 64; config=config, seed=i*10)
         train!(core, 500; difficulty=:medium, report_interval=1000) # Train silently
 
@@ -130,16 +129,23 @@ function test_consciousness_emergence()
     
     for run in 1:n_runs
         println("   Run $run/$n_runs...")
-        # FIX: Provide a unique seed for each run to ensure independent tests.
         core = GeometricCore(4, 10, 64; config=config, seed=run)
         train!(core, 1000; difficulty=:medium, report_interval=200, early_stopping_threshold=0.98)
         
         assessment = assess_consciousness(core)
+        
+        # FIX: Down-sample the trajectory to save space, storing only every 20th point.
+        downsampled_trajectory = if !isempty(core.intelligence_history)
+            core.intelligence_history[1:20:end]
+        else
+            []
+        end
+        
         push!(emergence_data, Dict(
             "run" => run,
             "final_consciousness" => assessment["consciousness_level"],
             "emergence_achieved" => assessment["is_conscious"],
-            "consciousness_trajectory" => core.consciousness_level > 0 ? core.intelligence_history : []
+            "consciousness_trajectory" => downsampled_trajectory
         ))
     end
     
@@ -155,7 +161,6 @@ end
 
 function test_resource_efficiency()
     config = TrainingConfig(learning_rate=0.005)
-    # FIX: Provide an explicit, unique seed for this test.
     core = GeometricCore(4, 10, 64; config=config, seed=101)
     
     total_params = length(core.W_feature) + length(core.W_scoring) + length(core.γ_norm) + length(core.β_norm)
@@ -178,7 +183,6 @@ function test_resource_efficiency()
 end
 
 function test_mathematical_understanding()
-    # FIX: Provide an explicit, unique seed for this test.
     core = GeometricCore(4, 10, 64; config=TrainingConfig(learning_rate=0.005), seed=202)
     train!(core, 500; difficulty=:medium, report_interval=1000)
     
