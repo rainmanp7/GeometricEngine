@@ -1,3 +1,4 @@
+
 # emergent_ai_engine.jl
 module EmergentAIEngine
 
@@ -126,7 +127,12 @@ function calculate_novelty(entity, problem)
         return 1.0  # Maximum novelty for first problem
     end
     
-    recent_problems = [h[:problem_type] for h in entity.activation_history[end-5:end]]
+    # FIXED: Handle cases where history is shorter than 5 entries
+    history_len = length(entity.activation_history)
+    lookback = min(5, history_len)
+    start_idx = max(1, history_len - lookback + 1)
+    
+    recent_problems = [h[:problem_type] for h in entity.activation_history[start_idx:end]]
     similarity = count(p -> p == problem, recent_problems) / length(recent_problems)
     return 1.0 - similarity
 end
