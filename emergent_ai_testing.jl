@@ -1,15 +1,17 @@
 
 # emergent_ai_testing.jl
 
-# STEP 1: Load the code from the other file into the main script scope.
+# STEP 1: Load the EmergentAIEngine module
 include("EmergentAIEngine.jl")
 
-# STEP 2: Define our testing module.
+# STEP 2: Import the module at the top level so it's available
+using .EmergentAIEngine
+
+# STEP 3: Define our testing module.
 module EmergentAITesting
 
-# STEP 3: Inside this module, use a '.' to tell Julia to find "EmergentAIEngine"
-# in the parent scope (where 'include' loaded it), not in the installed packages.
-using .EmergentAIEngine, JSON3, Dates, Statistics, Random
+# STEP 4: Import everything we need, including the parent module's EmergentAIEngine
+using ..EmergentAIEngine, JSON3, Dates, Statistics, Random
 using LinearAlgebra  # Added for norm function
 
 # ==================== TEST FRAMEWORK ====================
@@ -440,4 +442,3 @@ if abspath(PROGRAM_FILE) == @__FILE__
     println("\n🎯 TESTING COMPLETE")
     println("Evidence of emergent intelligence has been documented in JSON report.")
 end
-
