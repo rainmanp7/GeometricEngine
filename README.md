@@ -1,2 +1,2 @@
-# GeometricEngine
+# Geometric Intelligence Engine
 Geometric Intelligence Engine
