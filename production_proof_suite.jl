@@ -10,7 +10,7 @@ using JSON3, Random, Statistics
 
 # This must be the name of your engine file.
 include("ProductionGeometricEngine.jl") 
-using .GeometricEngine
+using .ProductionGeometricEngine
 
 function run_tests()
     config = TrainingConfig()
