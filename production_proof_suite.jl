@@ -1,62 +1,70 @@
-# production_proof_suite.jl (Corrected for JSON3)
-
-"""
-This script runs a simple, clean test to verify that the GeometricEngine
-can learn the geometric reasoning task.
-"""
-
-# FIX: Use JSON3 and Statistics correctly.
-using JSON3, Random, Statistics
-
-# This must be the name of your engine file.
-include("ProductionGeometricEngine.jl") 
+using JSON3, Random, Statistics, Printf, Dates
+include("ProductionGeometricEngine.jl")
 using .ProductionGeometricEngine
 
-function run_tests()
-    config = TrainingConfig()
-    core = GeometricCore(config=config, seed=42)
-    
-    results = Dict(
-        "pre_train_accuracy" => Float64[],
-        "post_train_accuracy" => Float64[],
-        "emergent_properties" => Dict("geometric_reasoning" => false)
-    )
-    
-    # Pre-train test: should be random (~1/num_points accuracy)
-    for _ in 1:50
-        X, target = generate_problem(core)
-        pred = predict(core, X)
-        push!(results["pre_train_accuracy"], pred == target ? 1.0 : 0.0)
-    end
-    
-    # Train for emergence: geometric learning of norm minimization
-    for ep in 1:1000
-        X, target = generate_problem(core)
-        train_step!(core, X, target)
-    end
-    
-    # Post-train test: should emerge high accuracy in finding closest point
-    for _ in 1:50
-        X, target = generate_problem(core)
-        pred = predict(core, X)
-        push!(results["post_train_accuracy"], pred == target ? 1.0 : 0.0)
-    end
-    
-    pre_acc = mean(results["pre_train_accuracy"])
-    post_acc = mean(results["post_train_accuracy"])
-    
-    # Emergent if accuracy improves significantly and geometrically (non-statistical threshold)
-    results["emergent_properties"]["geometric_reasoning"] = post_acc > 0.8 && post_acc > pre_acc + 0.5
-    
-    # Add summary statistics to the results
-    results["summary"] = Dict(
-        "pre_train_mean_accuracy" => pre_acc,
-        "post_train_mean_accuracy" => post_acc,
-        "learning_achieved" => post_acc > pre_acc + 0.1
-    )
+# ------------------------------------------------------------------------
+# Hyper-parameters (tuned for fast convergence)
+# ------------------------------------------------------------------------
+const HIDDEN   = 128
+const LR       = 2e-3
+const EPISODES = 2500
 
-    # FIX: Use the correct JSON3 syntax to write the output string.
-    println(JSON3.write(results, indent=4))
+# ------------------------------------------------------------------------
+# Helper: single-run test
+# ------------------------------------------------------------------------
+function one_run(seed::Int)
+    cfg  = TrainingConfig(lr=LR)
+    core = GeometricCore(4,10,HIDDEN; cfg=cfg, seed=seed)
+
+    # ---- pre-train ----
+    pre = [predict(core,first(make_problem(core))) == second(make_problem(core)) ? 1.0 : 0.0
+           for _ in 1:100]
+    pre_acc = mean(pre)
+
+    # ---- train ----
+    for _ in 1:EPISODES
+        X,t = make_problem(core)
+        train_step!(core, X, t)
+    end
+
+    # ---- post-train ----
+    post = [predict(core,first(make_problem(core))) == second(make_problem(core)) ? 1.0 : 0.0
+            for _ in 1:200]
+    post_acc = mean(post)
+
+    learned = post_acc > 0.90 && post_acc > pre_acc + 0.50
+    return Dict(
+        "pre_acc"  => round(pre_acc,  digits=4),
+        "post_acc" => round(post_acc, digits=4),
+        "learned"  => learned,
+        "pre"      => pre,
+        "post"     => post
+    )
 end
 
-run_tests()
+# ------------------------------------------------------------------------
+# Main suite
+# ------------------------------------------------------------------------
+function run_suite()
+    println("Running Production Proof Suite …")
+    results = [one_run(i) for i in 1:5]
+
+    summary = Dict(
+        "pre_train_mean_accuracy"  => round(mean(r["pre_acc"]  for r in results), digits=4),
+        "post_train_mean_accuracy" => round(mean(r["post_acc"] for r in results), digits=4),
+        "learning_achieved"        => all(r["learned"] for r in results)
+    )
+
+    full = Dict(
+        "summary"           => summary,
+        "runs"              => results,
+        "emergent_properties" => Dict("geometric_reasoning" => summary["learning_achieved"])
+    )
+
+    open("proof_results.json","w") do f
+        JSON3.write(f, full, indent=4)
+    end
+    println(JSON3.write(full))
+end
+
+run_suite()
