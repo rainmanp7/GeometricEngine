@@ -1,6 +1,6 @@
 # .github/workflows/geometric_proof.yml
 
-name: Emergent Intelligence V3 Generalization Proof
+name: Emergent Intelligence V4 Synthesis Proof
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 jobs:
-  run-v3-proof:
+  run-v4-proof:
     runs-on: ubuntu-latest
     
     steps:
@@ -26,11 +26,11 @@ jobs:
     - name: Install Julia dependencies
       run: julia -e 'using Pkg; Pkg.add("JSON3")'
         
-    - name: 🔬 Run V3 Generalization & Capacity Test Suite
-      run: julia test_suite_V3.jl
+    - name: 🔬 Run V4 Conceptual Synthesis Test Suite
+      run: julia test_suite_V4.jl
       
-    - name: Upload V3 Generalization Report
+    - name: Upload V4 Synthesis Report
       uses: actions/upload-artifact@v4
       with:
-        name: v3-generalization-report-${{ github.run_id }}
-        path: V3_generalization_report.json
+        name: v4-synthesis-report-${{ github.run_id }}
+        path: V4_synthesis_report.json
