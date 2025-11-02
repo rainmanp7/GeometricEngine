@@ -1,6 +1,6 @@
 # .github/workflows/geometric_proof.yml
 
-name: Emergent Intelligence V2 Proof
+name: Emergent Intelligence V3 Generalization Proof
 
 on:
   workflow_dispatch:
@@ -8,12 +8,11 @@ on:
     branches: [ main ]
 
 jobs:
-  run-v2-proof:
+  run-v3-proof:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
-      # This checks out all files, including real_4d_weights.json
       uses: actions/checkout@v4
       
     - name: Verify weights file exists
@@ -27,12 +26,11 @@ jobs:
     - name: Install Julia dependencies
       run: julia -e 'using Pkg; Pkg.add("JSON3")'
         
-    - name: 🔬 Run V2 Test Suite with REAL weights
-      # This is the command that runs our new test script
-      run: julia test_suite_V2.jl
+    - name: 🔬 Run V3 Generalization & Capacity Test Suite
+      run: julia test_suite_V3.jl
       
-    - name: Upload V2 Proof Report
+    - name: Upload V3 Generalization Report
       uses: actions/upload-artifact@v4
       with:
-        name: v2-real-emergence-report-${{ github.run_id }}
-        path: V2_real_emergence_report.json
+        name: v3-generalization-report-${{ github.run_id }}
+        path: V3_generalization_report.json
