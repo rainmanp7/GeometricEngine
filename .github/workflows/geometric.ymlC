@@ -1,48 +1,38 @@
 # .github/workflows/geometric_proof.yml
 
-name: Geometric Intelligence Production Proof
+name: REAL Geometric Intelligence Proof (from JSON)
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   push:
     branches: [ main ]
 
 jobs:
-  run-production-proof:
+  run-real-proof-from-json:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Verify that the weights JSON file exists
+      run: ls -l real_4d_weights.json
+      
     - name: Setup Julia
       uses: julia-actions/setup-julia@v1
       with:
         version: '1.10'
-
-    - name: Cache Julia packages
-      uses: julia-actions/cache@v1
         
-    - name: Install dependencies
+    - name: Install Julia dependencies
       run: julia -e 'using Pkg; Pkg.add("JSON3")'
         
-    # --- START DEBUGGING STEPS ---
-    - name: 1. Verify checked out files
-      run: ls -R
+    # --- THIS IS THE FIX ---
+    - name: 🔬 Run Julia script with REAL weights from JSON
+      # We are now running the CORRECT script.
+      run: julia test_real_4d_intelligence.jl
       
-    - name: 2. Display content of testing script
-      run: cat emergent_ai_testing.jl
-    # --- END DEBUGGING STEPS ---
-        
-    - name: Run Production Proof Suite
-      id: proof_run
-      # Run the new production suite file
-      run: julia emergent_ai_testing.jl
-      
-    - name: Upload Proof Results
-      # The 'if' condition is not needed, this step only runs on success by default.
+    - name: Upload REAL Proof Report
       uses: actions/upload-artifact@v4
       with:
-        name: production-proof-results-${{ github.run_id }}
-        # FIX: Use a wildcard to find the generated JSON report file, as the name is dynamic.
-        path: emergent_ai_report_*.json
+        name: real-proof-report-from-json-${{ github.run_id }}
+        path: REAL_4d_intelligence_report.json
