@@ -22,7 +22,7 @@ function test_modular_arithmetic_discovery(entity)
     
     # Actually use the teaching examples to establish the pattern
     # Calculate average "pattern signature" from teaching examples
-    teaching_matrix = permutedims(reduce(hcat, teaching_examples))
+    teaching_matrix = Float64.(permutedims(reduce(hcat, teaching_examples)))
     pattern_signature = vec(mean(teaching_matrix, dims=1))
     
     println("\n   Testing Generalization:")
@@ -45,7 +45,7 @@ function test_modular_arithmetic_discovery(entity)
     all_test_cases = vcat(test_cases, incorrect_cases)
     
     # Represent as conceptual points in 4D space [operand1, operand2, result, modulus]
-    concept_points = permutedims(reduce(hcat, [case[1] for case in all_test_cases]))
+    concept_points = Float64.(permutedims(reduce(hcat, [case[1] for case in all_test_cases])))
     concept_names = [case[2] for case in all_test_cases]
     
     # Use the learned pattern signature as target
@@ -90,7 +90,7 @@ function test_abstract_sequence_discovery(entity)
     end
     
     # Calculate the pattern: each sequence has property that seq[3] = seq[1] + seq[2], etc.
-    teaching_matrix = permutedims(reduce(hcat, sequence_examples))
+    teaching_matrix = Float64.(permutedims(reduce(hcat, sequence_examples)))
     pattern_signature = vec(mean(teaching_matrix, dims=1))
     
     # Test cases - which sequences follow the same rule?
@@ -103,7 +103,7 @@ function test_abstract_sequence_discovery(entity)
         ([2, 4, 8, 16], "aₙ = 2×aₙ₋₁ [WRONG]")                   # Wrong: exponential growth
     ]
     
-    concept_points = permutedims(reduce(hcat, [seq[1] for seq in test_sequences]))
+    concept_points = Float64.(permutedims(reduce(hcat, [seq[1] for seq in test_sequences])))
     concept_names = [seq[2] for seq in test_sequences]
     
     result = EmergentAIEngineV4.find_closest_concept(entity, concept_points, pattern_signature)
