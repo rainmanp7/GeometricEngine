@@ -1,6 +1,6 @@
 # .github/workflows/geometric_proof.yml
 
-name: Emergent Intelligence V4 Synthesis Proof
+name: Emergent Intelligence V5 Fluid Intelligence Proof
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 jobs:
-  run-v4-proof:
+  run-v5-proof:
     runs-on: ubuntu-latest
     
     steps:
@@ -26,11 +26,11 @@ jobs:
     - name: Install Julia dependencies
       run: julia -e 'using Pkg; Pkg.add("JSON3")'
         
-    - name: 🔬 Run V4 Conceptual Synthesis Test Suite
-      run: julia test_suite_V4.jl
+    - name: 🔬 Run V5 Fluid Intelligence Test Suite
+      run: julia test_suite_V5.jl
       
-    - name: Upload V4 Synthesis Report
+    - name: Upload V5 Fluid Intelligence Report
       uses: actions/upload-artifact@v4
       with:
-        name: v4-synthesis-report-${{ github.run_id }}
-        path: V4_synthesis_report.json
+        name: v5-fluid-intelligence-report-${{ github.run_id }}
+        path: V5_fluid_intelligence_report.json
