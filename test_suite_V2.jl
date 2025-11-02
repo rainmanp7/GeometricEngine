@@ -24,9 +24,10 @@ function run_full_suite()
     generate_json_report(results, geo_entity)
 end
 
-# --- INDIVIDUAL TESTS ---
+# --- INDIVIDUAL TESTS (WITH CORRECTED TYPE ANNOTATIONS) ---
 
-function test_geometric_intelligence(entity::EmergentGeometricEntity)
+# FIX: Add the module prefix to the type annotation here.
+function test_geometric_intelligence(entity::EmergentAIEngineV2.EmergentGeometricEntity)
     correct_count = 0
     num_tests = 50
     for _ in 1:num_tests
@@ -42,7 +43,8 @@ function test_geometric_intelligence(entity::EmergentGeometricEntity)
     return (name="Geometric Intelligence", success=accuracy > 0.95, metrics=Dict(:accuracy => accuracy))
 end
 
-function test_metacognition(entity::EmergentGeometricEntity)
+# FIX: Add the module prefix to the type annotation here.
+function test_metacognition(entity::EmergentAIEngineV2.EmergentGeometricEntity)
     confidences = []
     meta_scores = []
     for _ in 1:10
@@ -58,7 +60,8 @@ function test_metacognition(entity::EmergentGeometricEntity)
     return (name="Metacognition", success=avg_confidence > 0.8, metrics=Dict(:avg_confidence => avg_confidence, :avg_meta_score => avg_meta_score))
 end
 
-function test_active_learning(entity::EmergentGeometricEntity)
+# FIX: Add the module prefix to the type annotation here.
+function test_active_learning(entity::EmergentAIEngineV2.EmergentGeometricEntity)
     initial_weights = copy(entity.feature_weights)
     # Test with perfect data first
     points = EmergentAIEngineV2.generate_4d_points(8)
@@ -74,7 +77,8 @@ function test_active_learning(entity::EmergentGeometricEntity)
     return (name="Active Learning", success=no_change && change_occurred, metrics=Dict(:no_change_on_success => no_change, :change_on_failure => change_occurred))
 end
 
-function generate_json_report(results, entity)
+# FIX: Add the module prefix to the type annotation here.
+function generate_json_report(results, entity::EmergentAIEngineV2.EmergentGeometricEntity)
     report = Dict(
         :test_suite => "Emergent Intelligence V2 (Real Weights)",
         :timestamp => now(),
@@ -91,7 +95,7 @@ function generate_json_report(results, entity)
     )
     json_string = JSON3.write(report, pretty=true)
     filename = "V2_real_emergence_report.json"
-    open(filename, "w") { |f| write(f, json_string) }
+    open(filename, "w") do f; write(f, json_string); end
     println("\n📊 V2 Test Report Generated: $filename")
 end
 
