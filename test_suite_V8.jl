@@ -26,7 +26,7 @@ function test_spatial_vs_temporal_intelligence(entity)
     for (pattern, description, should_pass) in spatial_tests
         # Test if it recognizes this as a "valid" pattern
         noise = zeros(4)  # Use zeros instead of undefined vector
-        points = hcat(pattern, noise)'  # Simplified matrix construction
+        points = Matrix(hcat(pattern, noise)')  # Convert to Matrix
         
         result = EmergentAIEngineV4.find_closest_concept(entity, points, pattern)
         recognized = (result.solution_index == 1)
@@ -55,7 +55,7 @@ function test_spatial_vs_temporal_intelligence(entity)
     temporal_success = 0
     for (pattern, description, should_pass) in temporal_tests
         noise = zeros(4)
-        points = hcat(pattern, noise)'
+        points = Matrix(hcat(pattern, noise)')  # Convert to Matrix
         
         result = EmergentAIEngineV4.find_closest_concept(entity, points, pattern)
         recognized = (result.solution_index == 1)
@@ -78,7 +78,7 @@ function test_spatial_vs_temporal_intelligence(entity)
     
     for (pattern, description, expected_type) in hybrid_tests
         noise = zeros(4)
-        points = hcat(pattern, noise)'
+        points = Matrix(hcat(pattern, noise)')  # Convert to Matrix
         result = EmergentAIEngineV4.find_closest_concept(entity, points, pattern)
         println("   - $description: Type=$expected_type (Confidence: $(round(result.confidence*100, digits=1))%)")
     end
@@ -132,7 +132,7 @@ function test_abstraction_hierarchy(entity)
     abstraction_scores = []
     for (pattern, description, level) in abstraction_levels
         noise = randn(4)
-        points = hcat(pattern, noise)'  # Pattern vs noise
+        points = Matrix(hcat(pattern, noise)')  # Convert to Matrix
         
         result = EmergentAIEngineV4.find_closest_concept(entity, points, pattern)
         success = (result.solution_index == 1)
