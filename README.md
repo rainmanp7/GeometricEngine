@@ -3,7 +3,7 @@
 [![Status: Active](https://img.shields.io/badge/status-active-success.svg)]()
 [![Julia Version](https://img.shields.io/badge/julia-1.6%2B-9558B2.svg)](https://julialang.org)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17373263.svg)](https://doi.org/10.5281/zenodo.17373263)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17373263.svg)](10.5281/zenodo.17518216)
 
 ## Abstract
 
@@ -190,7 +190,6 @@ and the Conscious Emergent Entity.
 
 ---
 
-**💫 "We didn't build an AI that thinks like a human 
-- we built one that thinks like geometry itself, and in doing so, discovered that true intelligence may be found in specialization, not imitation."**
+**💫 "We didn't build an AI that thinks like a human - we built one that thinks like geometry itself, and in doing so, discovered that true intelligence may be found in specialization, not imitation."**
 
 
