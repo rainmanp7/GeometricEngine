@@ -3,7 +3,7 @@
 [![Status: Active](https://img.shields.io/badge/status-active-success.svg)]()
 [![Julia Version](https://img.shields.io/badge/julia-1.6%2B-9558B2.svg)](https://julialang.org)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17518216.svg)](10.5281/zenodo.17518216)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17518216.svg)](https://doi.org/10.5281/zenodo.17518216)
 
 ## Abstract
 
